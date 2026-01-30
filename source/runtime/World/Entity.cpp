@@ -27,6 +27,8 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #include "Components/Physics.h"
 #include "Components/AudioSource.h"
 #include "Components/Terrain.h"
+#include "Components/ParticleSystem.h"
+
 SP_WARNINGS_OFF
 #include "../IO/pugixml.hpp"
 SP_WARNINGS_ON
@@ -285,13 +287,14 @@ namespace spartan
 
         switch (type)
         {
-            case ComponentType::AudioSource: component = static_cast<Component*>(AddComponent<AudioSource>()); break;
-            case ComponentType::Camera:      component = static_cast<Component*>(AddComponent<Camera>());      break;
-            case ComponentType::Light:       component = static_cast<Component*>(AddComponent<Light>());       break;
-            case ComponentType::Renderable:  component = static_cast<Component*>(AddComponent<Renderable>());  break;
-            case ComponentType::Physics:     component = static_cast<Component*>(AddComponent<Physics>());     break;
-            case ComponentType::Terrain:     component = static_cast<Component*>(AddComponent<Terrain>());     break;
-            default:                         component = nullptr;                                              break;
+            case ComponentType::AudioSource:        component = static_cast<Component*>(AddComponent<AudioSource>());        break;
+            case ComponentType::Camera:             component = static_cast<Component*>(AddComponent<Camera>());             break;
+            case ComponentType::Light:              component = static_cast<Component*>(AddComponent<Light>());              break;
+            case ComponentType::Renderable:         component = static_cast<Component*>(AddComponent<Renderable>());         break;
+            case ComponentType::Physics:            component = static_cast<Component*>(AddComponent<Physics>());            break;
+            case ComponentType::Terrain:            component = static_cast<Component*>(AddComponent<Terrain>());            break;
+            case ComponentType::ParticleSystem:     component = static_cast<Component*>(AddComponent<ParticleSystem>());     break;
+            default:                                component = nullptr;                                                     break;
         }
 
         SP_ASSERT(component != nullptr);

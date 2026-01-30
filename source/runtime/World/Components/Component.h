@@ -46,6 +46,7 @@ namespace spartan
         Physics,
         Renderable,
         Terrain,
+        ParticleSystem,
         Max
     };
     // after re-ordering the above, ensure .world save/load works
@@ -93,12 +94,13 @@ namespace spartan
         {
             switch (type)
             {
-                case ComponentType::AudioSource: return "audio_source";
-                case ComponentType::Camera:      return "camera";
-                case ComponentType::Light:       return "light";
-                case ComponentType::Physics:     return "physics";
-                case ComponentType::Renderable:  return "renderable";
-                case ComponentType::Terrain:     return "terrain";
+                case ComponentType::AudioSource:    return "audio_source";
+                case ComponentType::Camera:         return "camera";
+                case ComponentType::Light:          return "light";
+                case ComponentType::Physics:        return "physics";
+                case ComponentType::Renderable:     return "renderable";
+                case ComponentType::Terrain:        return "terrain";
+                case ComponentType::ParticleSystem: return "particle_system";
                 default:
                     assert(false && "TypeToString: Unknown ComponentType");
                     return {};
@@ -107,12 +109,13 @@ namespace spartan
         
         static ComponentType StringToType(const std::string& name)
         {
-            if (name == "audio_source") return ComponentType::AudioSource;
-            if (name == "camera")       return ComponentType::Camera;
-            if (name == "light")        return ComponentType::Light;
-            if (name == "physics")      return ComponentType::Physics;
-            if (name == "renderable")   return ComponentType::Renderable;
-            if (name == "terrain")      return ComponentType::Terrain;
+            if (name == "audio_source")     return ComponentType::AudioSource;
+            if (name == "camera")           return ComponentType::Camera;
+            if (name == "light")            return ComponentType::Light;
+            if (name == "physics")          return ComponentType::Physics;
+            if (name == "renderable")       return ComponentType::Renderable;
+            if (name == "terrain")          return ComponentType::Terrain;
+            if (name == "particle_system")  return ComponentType::ParticleSystem;
         
             assert(false && "StringToType: Unknown component name");
             return ComponentType::Max;

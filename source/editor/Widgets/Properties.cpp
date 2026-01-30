@@ -35,6 +35,10 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #include "World/Components/AudioSource.h"
 #include "World/Components/Terrain.h"
 #include "World/Components/Camera.h"
+
+#include "World/Components/ParticleSystem.h"
+#include "ParticleSystem/Emitter.h"
+#include "EmitterFactory.h"
 //=======================================
 
 //= NAMESPACES =========
@@ -212,6 +216,7 @@ void Properties::OnTickVisible()
                 ShowRenderable(renderable);
                 ShowMaterial(material);
                 ShowPhysics(entity->GetComponent<Physics>());
+                ShowParticleSystem(entity->GetComponent<ParticleSystem>());
 
                 ShowAddComponentButton();
             }
@@ -1168,6 +1173,254 @@ void Properties::ShowAudioSource(spartan::AudioSource* audio_source) const
     }
     component_end();
 }
+
+void Properties::ShowParticleSystem(spartan::ParticleSystem* particle_system) const
+{
+    if (!particle_system)
+        return;
+
+    if (!component_begin("Particle System", particle_system))
+        return;
+
+    ImGui::Separator();
+
+    for (size_t i = 0; i < particle_system->emitters.size();)
+    {
+        Emitter* emitter = particle_system->emitters[i];
+
+        ImGui::PushID(emitter);
+
+        // =========================
+        // Emitter Header
+        // =========================
+        char name_buffer[256]{};
+        strncpy(name_buffer, emitter->name.c_str(), sizeof(name_buffer) - 1);
+
+        bool emitter_open = ImGui::TreeNodeEx(
+            "##Emitter",
+            ImGuiTreeNodeFlags_AllowOverlap | ImGuiTreeNodeFlags_DefaultOpen
+        );
+
+        ImGui::SameLine();
+        ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x - 30.0f);
+        if (ImGui::InputText("##EmitterName", name_buffer, sizeof(name_buffer)))
+        {
+            emitter->name = name_buffer;
+        }
+
+        float button_width = 20.0f;
+        ImGui::SameLine(ImGui::GetContentRegionAvail().x - button_width);
+        if (ImGui::Button("X"))
+        {
+            delete emitter;
+            particle_system->emitters.erase(
+                particle_system->emitters.begin() + i
+            );
+
+            ImGui::PopID();
+            ImGui::TreePop();
+            ImGui::Separator();
+            continue; // DO NOT increment i
+        }
+
+        if (!emitter_open)
+        {
+            ImGui::PopID();
+            continue;
+        }
+
+        ImGui::Checkbox("Enabled", &emitter->enabled);
+
+        // ======================================================
+        // Initialization Modules
+        // ======================================================
+        ImGui::PushID("InitModules");
+
+        bool open_init_popup = false;
+        ImGui::SetNextItemOpen(true, ImGuiCond_Once);
+        bool init_open = ImGui::CollapsingHeader("Initialization Modules", ImGuiTreeNodeFlags_AllowOverlap);
+
+        ImGui::SameLine(ImGui::GetContentRegionAvail().x - 90.0f);
+        if (ImGui::Button("+ Add Module"))
+        {
+            ImGui::OpenPopup("AddInitModule");
+        }
+
+        if (ImGui::BeginPopup("AddInitModule"))
+        {
+            for (const auto& name : EmitterFactory::GetAvailableInitializationModules())
+            {
+                if (ImGui::Selectable(name.c_str()))
+                {
+                    EmitterModuleType type = EmitterFactory::StringToType(name);
+
+                    EmitterModule* module = nullptr;
+
+                    switch (type)
+                    {
+                    case EmitterModuleType::BoxShape:
+                        module = new BoxShape_Module();
+                        break;
+                    case EmitterModuleType::SetLifetime:
+                        module = new SetLifetime_Module();
+                        break;
+                    case EmitterModuleType::AddVelocity:
+                        module = new AddVelocity_Module();
+                        break;
+                    case EmitterModuleType::Randomize:
+                        module = new Randomize_Module();
+                        break;
+                    case EmitterModuleType::SetColor:
+                        module = new SetColor_Module();
+                        break;
+                    default:
+                        assert(false && "Module not yet implemented!");
+                        break;
+                    }
+                    if (module)
+                        emitter->initialization_modules.push_back(module);
+                }
+            }
+            ImGui::EndPopup();
+        }
+
+        if (init_open)
+        {
+            for (auto it = emitter->initialization_modules.begin(); it != emitter->initialization_modules.end();)
+            {
+                EmitterModule* mod = *it;
+                ImGui::PushID(mod);
+
+                bool mod_open = ImGui::TreeNodeEx(
+                    EmitterFactory::TypeToString(mod->GetType()).c_str(),
+                    ImGuiTreeNodeFlags_AllowOverlap | ImGuiTreeNodeFlags_DefaultOpen
+                );
+
+                ImGui::SameLine(ImGui::GetContentRegionAvail().x - 25.0f);
+                if (ImGui::Button("x"))
+                {
+                    delete mod;
+                    it = emitter->initialization_modules.erase(it);
+                    ImGui::PopID();
+                    if (mod_open) ImGui::TreePop();
+                    continue;
+                }
+
+                if (mod_open)
+                {
+                    EmitterFactory::DrawGUI(mod);
+                    ImGui::TreePop();
+                }
+
+                ImGui::PopID();
+                ++it;
+            }
+        }
+
+        ImGui::PopID(); // InitModules
+
+        // ======================================================
+        // Update Modules
+        // ======================================================
+        ImGui::PushID("UpdateModules");
+
+        ImGui::SetNextItemOpen(true, ImGuiCond_Once);
+        bool update_open = ImGui::CollapsingHeader("Update Modules", ImGuiTreeNodeFlags_AllowOverlap);
+
+        ImGui::SameLine(ImGui::GetContentRegionAvail().x - 90.0f);
+        if (ImGui::Button("+ Add Module"))
+        {
+            ImGui::OpenPopup("AddUpdateModule");
+        }
+
+        if (ImGui::BeginPopup("AddUpdateModule"))
+        {
+            for (const auto& name : EmitterFactory::GetAvailableUpdateModules())
+            {
+                if (ImGui::Selectable(name.c_str()))
+                {
+                    EmitterModuleType type = EmitterFactory::StringToType(name);
+
+                    EmitterModule* module = nullptr;
+
+                    switch (type)
+                    {
+                        case EmitterModuleType::Gravity:
+                            module = new Gravity_Module();
+                            break;
+                        case EmitterModuleType::AddVelocity:
+                            module = new AddVelocity_Module();
+                            break;
+                        case EmitterModuleType::ApplyVelocity:
+                            module = new ApplyVelocity_Module();
+                            break;
+                        case EmitterModuleType::Randomize:
+                            module = new Randomize_Module();
+                            break;
+                        case EmitterModuleType::SetColor:
+                            module = new SetColor_Module();
+                            break;
+                        default:
+                            assert(false && "Module not yet implemented!");
+                            break;
+                    }
+                    if (module)
+                        emitter->update_modules.push_back(module);
+                }
+            }
+            ImGui::EndPopup();
+        }
+
+        if (update_open)
+        {
+            for (auto it = emitter->update_modules.begin(); it != emitter->update_modules.end();)
+            {
+                EmitterModule* mod = *it;
+                ImGui::PushID(mod);
+
+                bool mod_open = ImGui::TreeNodeEx(
+                    EmitterFactory::TypeToString(mod->GetType()).c_str(),
+                    ImGuiTreeNodeFlags_AllowOverlap | ImGuiTreeNodeFlags_DefaultOpen
+                );
+
+                ImGui::SameLine(ImGui::GetContentRegionAvail().x - 25.0f);
+                if (ImGui::Button("x"))
+                {
+                    delete mod;
+                    it = emitter->update_modules.erase(it);
+                    ImGui::PopID();
+                    if (mod_open) ImGui::TreePop();
+                    continue;
+                }
+
+                if (mod_open)
+                {
+                    EmitterFactory::DrawGUI(mod);
+                    ImGui::TreePop();
+                }
+
+                ImGui::PopID();
+                ++it;
+            }
+        }
+
+        ImGui::PopID(); // UpdateModules
+
+        ImGui::TreePop(); // Emitter
+        ImGui::Separator();
+        ImGui::PopID(); // emitter
+
+        ++i;
+    }
+
+    if (ImGui::Button("Add Emitter", ImVec2(-1, 0)))
+    {
+        particle_system->emitters.push_back(new Emitter());
+    }
+
+    component_end();
+}
+
 
 void Properties::ShowAddComponentButton() const
 {

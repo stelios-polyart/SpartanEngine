@@ -27,6 +27,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #include "Camera.h"
 #include "AudioSource.h"
 #include "Terrain.h"
+#include "ParticleSystem.h"
 //======================
 
 //= NAMESPACES =====
@@ -50,10 +51,11 @@ namespace spartan
     #define REGISTER_COMPONENT(T, enumT) template<>  ComponentType Component::TypeToEnum<T>() { validate_component_type<T>(); return enumT; }
 
     // to add a new component to the engine, simply register it here
-    REGISTER_COMPONENT(AudioSource, ComponentType::AudioSource)
-    REGISTER_COMPONENT(Camera,      ComponentType::Camera)
-    REGISTER_COMPONENT(Light,       ComponentType::Light)
-    REGISTER_COMPONENT(Renderable,  ComponentType::Renderable)
-    REGISTER_COMPONENT(Physics,     ComponentType::Physics)
-    REGISTER_COMPONENT(Terrain,     ComponentType::Terrain)
+    REGISTER_COMPONENT(AudioSource,         ComponentType::AudioSource)
+    REGISTER_COMPONENT(Camera,              ComponentType::Camera)
+    REGISTER_COMPONENT(Light,               ComponentType::Light)
+    REGISTER_COMPONENT(Renderable,          ComponentType::Renderable)
+    REGISTER_COMPONENT(Physics,             ComponentType::Physics)
+    REGISTER_COMPONENT(Terrain,             ComponentType::Terrain)
+    REGISTER_COMPONENT(ParticleSystem,      ComponentType::ParticleSystem)
 }

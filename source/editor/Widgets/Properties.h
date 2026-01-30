@@ -42,6 +42,7 @@ namespace spartan
     class Terrain;
     class ReflectionProbe;
     class Component;
+    class ParticleSystem;
 }
 
 class Properties : public Widget
@@ -66,6 +67,7 @@ private:
     void ShowCamera(spartan::Camera* camera) const;
     void ShowTerrain(spartan::Terrain* terrain) const;
     void ShowAudioSource(spartan::AudioSource* audio_source) const;
+    void ShowParticleSystem(spartan::ParticleSystem* particle_system) const;
 
     void ShowAddComponentButton() const;
     void ComponentContextMenu_Add() const;
