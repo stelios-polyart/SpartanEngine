@@ -1,5 +1,5 @@
 /*
-Copyright(c) 2015-2025 Panos Karabelas
+Copyright(c) 2015-2026 Panos Karabelas
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -30,6 +30,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #include "../../Input/Input.h"
 #include "../../Rendering/Renderer.h"
 #include "../../Display/Display.h"
+#include "../../XR/Xr.h"
 SP_WARNINGS_OFF
 #include "../IO/pugixml.hpp"
 SP_WARNINGS_ON
@@ -47,6 +48,9 @@ namespace spartan
         m_entity_ptr->SetPosition(Vector3(0.0f, 3.0f, -5.0f));
         SetFlag(CameraFlags::CanBeControlled, true);
         SetFlag(CameraFlags::PhysicalBodyAnimation, true);
+        m_pick_hits.reserve(256);
+        m_pick_indices.reserve(65536);
+        m_pick_vertices.reserve(65536);
     }
 
     void Camera::Initialize()
@@ -64,14 +68,36 @@ namespace spartan
             SetFlag(CameraFlags::IsDirty, true);
         }
 
-        if (m_position != GetEntity()->GetPosition() || m_rotation != GetEntity()->GetRotation())
+        // check if transform changed by comparing matrix directly (avoids quaternion decomposition instability)
+        const Matrix& current_matrix = GetEntity()->GetMatrix();
+        if (m_matrix_previous != current_matrix)
         {
-            m_position = GetEntity()->GetPosition();
-            m_rotation = GetEntity()->GetRotation();
+            m_matrix_previous = current_matrix;
             SetFlag(CameraFlags::IsDirty, true);
         }
 
+        // always process input for movement (gamepad, keyboard, physics body control)
         ProcessInput();
+
+        // xr head tracking - apply hmd orientation to camera (position is relative to body)
+        if (Xr::IsSessionRunning())
+        {
+            // get xr head tracking data
+            const Vector3& xr_position    = Xr::GetHeadPosition();
+            const Quaternion& xr_rotation = Xr::GetHeadOrientation();
+
+            // convert from openxr (right-handed: +x right, +y up, -z forward)
+            // to engine (left-handed: +x right, +y up, +z forward)
+            // negate z for position, and negate z and w for quaternion to flip handedness
+            Vector3 position = Vector3(xr_position.x, xr_position.y, -xr_position.z);
+            Quaternion rotation = Quaternion(xr_rotation.x, xr_rotation.y, -xr_rotation.z, -xr_rotation.w);
+
+            GetEntity()->SetPositionLocal(position);
+            GetEntity()->SetRotationLocal(rotation);
+
+            SetFlag(CameraFlags::IsDirty, true);
+        }
+
         ComputeMatrices();
     }
 
@@ -161,9 +187,7 @@ namespace spartan
         }
 
         const Ray& ray = ComputePickingRay();
-
-        static vector<RayHitResult> hits;
-        hits.clear();
+        m_pick_hits.clear();
 
         const vector<Entity*>& entities = World::GetEntities();
         for (Entity* entity : entities)
@@ -176,10 +200,10 @@ namespace spartan
             if (distance == numeric_limits<float>::infinity())
                 continue;
 
-            hits.emplace_back(entity, Vector3::Zero, distance, distance == 0.0f);
+            m_pick_hits.emplace_back(entity, Vector3::Zero, distance, distance == 0.0f);
         }
 
-        if (hits.empty())
+        if (m_pick_hits.empty())
         {
             ClearSelection();
             return;
@@ -189,24 +213,40 @@ namespace spartan
         float best_screen_dist = numeric_limits<float>::max();
         float best_depth       = numeric_limits<float>::max();
         Entity* best_entity    = nullptr;
-        for (RayHitResult& broad_hit : hits)
+        for (RayHitResult& broad_hit : m_pick_hits)
         {
             Renderable* renderable = broad_hit.m_entity->GetComponent<Renderable>();
-            static vector<uint32_t> indices;
-            indices.clear();
-            static vector<RHI_Vertex_PosTexNorTan> vertices;
-            vertices.clear();
-            renderable->GetGeometry(&indices, &vertices);
-            if (indices.empty() || vertices.empty())
+
+            // query mesh size first to reserve exact capacity and avoid allocations
+            uint32_t index_count  = renderable->GetIndexCount();
+            uint32_t vertex_count = renderable->GetVertexCount();
+            
+            // reserve exact capacity needed to avoid heap allocations in GetGeometry::resize()
+            // only reserve if current capacity is insufficient
+            if (m_pick_indices.capacity() < index_count)
+            {
+                m_pick_indices.reserve(index_count);
+            }
+            if (m_pick_vertices.capacity() < vertex_count)
+            {
+                m_pick_vertices.reserve(vertex_count);
+            }
+            
+            // clear and reuse pre-allocated buffers 
+            m_pick_indices.clear();
+            m_pick_vertices.clear();
+
+            renderable->GetGeometry(&m_pick_indices, &m_pick_vertices);
+            if (m_pick_indices.empty() || m_pick_vertices.empty())
                 continue;
 
             const Matrix& transform = broad_hit.m_entity->GetMatrix();
 
-            for (uint32_t i = 0; i < indices.size(); i += 3)
+            for (uint32_t i = 0; i < m_pick_indices.size(); i += 3)
             {
-                Vector3 p1(vertices[indices[i]].pos);
-                Vector3 p2(vertices[indices[i + 1]].pos);
-                Vector3 p3(vertices[indices[i + 2]].pos);
+                Vector3 p1(m_pick_vertices[m_pick_indices[i]].pos);
+                Vector3 p2(m_pick_vertices[m_pick_indices[i + 1]].pos);
+                Vector3 p3(m_pick_vertices[m_pick_indices[i + 2]].pos);
 
                 p1 = p1 * transform;
                 p2 = p2 * transform;
@@ -441,7 +481,7 @@ namespace spartan
         bool mouse_click_right      = Input::GetKey(KeyCode::Click_Right);
         bool mouse_click_left_down  = Input::GetKeyDown(KeyCode::Click_Left);
 
-        // if the camera is paranted to an entity with a physics body, we will control that instead
+        // if the camera is parented to an entity with a physics body, we will control that instead
         Physics* physics_body = nullptr;
         if (Entity* parent = GetEntity()->GetParent())
         {
@@ -450,6 +490,10 @@ namespace spartan
                 physics_body = physics;
             }
         }
+
+        // skip fps control if the physics body is disabled (e.g. when in a vehicle)
+        if (physics_body && !physics_body->IsEnabled())
+            return;
 
         // deduce all states into booleans (some states exists as part of the class, so no need to deduce here)
         bool mouse_in_viewport    = Input::GetMouseIsInViewport();
@@ -491,10 +535,11 @@ namespace spartan
     
         // behavior: mouse look and movement direction calculation
         Vector3 movement_direction = Vector3::Zero;
+        bool is_xr_active = Xr::IsSessionRunning();
         if (is_controlled || is_gamepad_connected)
         {
-            // cursor edge wrapping
-            if (is_controlled)
+            // cursor edge wrapping (skip in xr mode - head tracking handles rotation)
+            if (is_controlled && !is_xr_active)
             {
                 Vector2 mouse_pos = Input::GetMousePosition();
                 uint32_t edge = 5;
@@ -508,27 +553,33 @@ namespace spartan
                 }
             }
     
-            // mouse and gamepad look
-            Quaternion current_rotation = GetEntity()->GetRotation();
-            Vector2 input_delta = Vector2::Zero;
-            if (is_controlled)
+            // mouse and gamepad look - skip in xr mode since head tracking handles rotation
+            if (!is_xr_active)
             {
-                input_delta = Input::GetMouseDelta() * m_mouse_sensitivity;
+                Quaternion current_rotation = GetEntity()->GetRotationLocal();
+                Vector2 input_delta = Vector2::Zero;
+                if (is_controlled)
+                {
+                    input_delta = Input::GetMouseDelta() * m_mouse_sensitivity;
+                }
+                else if (is_gamepad_connected)
+                {
+                    // gamepad stick is a rate (rotation speed), not accumulated movement like mouse
+                    // scale by delta_time and a base rotation speed for framerate-independent behavior
+                    const float gamepad_rotation_speed = 120.0f; // degrees per second at full stick deflection
+                    input_delta = Input::GetGamepadThumbStickRight() * gamepad_rotation_speed * delta_time;
+                }
+                Quaternion yaw_increment   = Quaternion::FromAxisAngle(Vector3::Up, input_delta.x * deg_to_rad);
+                Quaternion pitch_increment = Quaternion::FromAxisAngle(Vector3::Right, input_delta.y * deg_to_rad);
+                Quaternion new_rotation    = yaw_increment * current_rotation * pitch_increment;
+                Vector3 forward            = new_rotation * Vector3::Forward;
+                float pitch_angle          = asin(-forward.y) * rad_to_deg;
+                if (pitch_angle > 80.0f || pitch_angle < -80.0f)
+                {
+                    new_rotation = yaw_increment * current_rotation;
+                }
+                GetEntity()->SetRotationLocal(new_rotation.Normalized());
             }
-            else if (is_gamepad_connected)
-            {
-                input_delta = Input::GetGamepadThumbStickRight();
-            }
-            Quaternion yaw_increment   = Quaternion::FromAxisAngle(Vector3::Up, input_delta.x * deg_to_rad);
-            Quaternion pitch_increment = Quaternion::FromAxisAngle(Vector3::Right, input_delta.y * deg_to_rad);
-            Quaternion new_rotation    = yaw_increment * current_rotation * pitch_increment;
-            Vector3 forward            = new_rotation * Vector3::Forward;
-            float pitch_angle          = asin(-forward.y) * rad_to_deg;
-            if (pitch_angle > 80.0f || pitch_angle < -80.0f)
-            {
-                new_rotation = yaw_increment * current_rotation;
-            }
-            GetEntity()->SetRotationLocal(new_rotation.Normalized());
     
             // Keyboard and gamepad movement direction
             if (is_controlled)
@@ -573,32 +624,47 @@ namespace spartan
             }
         }
     
-        // behavior: physical body animation
+        // behavior: physical body animation (head bob when walking)
         if (GetFlag(CameraFlags::PhysicalBodyAnimation) && is_playing && has_physics_body && is_grounded)
         {
-            static Vector3 base_local_position = GetEntity()->GetPositionLocal();
-            static Vector3 bob_offset          = Vector3::Zero;
-            static float bob_timer             = 0.0f;
-            static float breathe_timer         = 0.0f;
-    
-            float velocity_magnitude = physics_body->GetLinearVelocity().Length();
-            if (velocity_magnitude > 0.01f) // walking head bob
+            static Vector3 prev_bob_offset = Vector3::Zero;
+            static float bob_timer         = 0.0f;
+            static float bob_amplitude     = 0.0f;
+            
+            const float max_amplitude    = 0.04f;
+            float velocity_magnitude     = physics_body->GetLinearVelocity().Length();
+            
+            if (velocity_magnitude > 0.1f) // walking - ramp up amplitude and advance timer
             {
-                bob_timer           += delta_time * velocity_magnitude * 1.5f;
-                float bob_amplitude  = 0.04f;
-                bob_offset.y         = sin(bob_timer) * bob_amplitude;
-                bob_offset.x         = cos(bob_timer) * bob_amplitude * 0.5f;
+                bob_timer     += delta_time * velocity_magnitude * 1.5f;
+                bob_amplitude  = min(bob_amplitude + delta_time * 0.5f, max_amplitude);
             }
-            else // breathing effect when resting
+            else // not walking - decay amplitude to zero (no wobble)
             {
-                breathe_timer               += delta_time * 2.0f;
-                float breathe_amplitude      = 0.0025f;
-                float pitch_offset           = sin(breathe_timer) * breathe_amplitude;
-                Quaternion breathe_rotation  = Quaternion::FromAxisAngle(Vector3::Right, pitch_offset * deg_to_rad);
-                Quaternion current_rotation  = GetEntity()->GetRotationLocal();
-                GetEntity()->SetRotationLocal(current_rotation * breathe_rotation);
+                bob_amplitude *= 1.0f - clamp(delta_time * 8.0f, 0.0f, 1.0f);
+                if (bob_amplitude < 0.001f)
+                {
+                    bob_amplitude = 0.0f;
+                    bob_timer     = 0.0f;
+                }
             }
-            GetEntity()->SetPositionLocal(base_local_position + bob_offset);
+            
+            // compute bob offset
+            Vector3 bob_offset = Vector3::Zero;
+            if (bob_amplitude > 0.0f)
+            {
+                bob_offset.y = sin(bob_timer) * bob_amplitude;
+                bob_offset.x = cos(bob_timer) * bob_amplitude * 0.5f;
+            }
+            
+            // apply change in bob offset (delta) to avoid drift
+            Vector3 bob_delta = bob_offset - prev_bob_offset;
+            prev_bob_offset   = bob_offset;
+            
+            if (bob_delta.LengthSquared() > 0.0000001f)
+            {
+                GetEntity()->SetPositionLocal(GetEntity()->GetPositionLocal() + bob_delta);
+            }
         }
     
         // behavior: jumping
@@ -677,6 +743,7 @@ namespace spartan
                 // entity
                 m_flashlight = World::CreateEntity();
                 m_flashlight->SetObjectName("flashlight");
+                m_flashlight->SetTransient(true); // don't serialize - dynamically created
                 m_flashlight->SetParent(GetEntity());
                 m_flashlight->SetRotationLocal(Quaternion::Identity);
 
@@ -843,15 +910,16 @@ namespace spartan
 
     Matrix Camera::UpdateViewMatrix() const
     {
-        Vector3 position = GetEntity()->GetPosition();
-        Vector3 look_at  = GetEntity()->GetRotation() * Vector3::Forward;
-        Vector3 up       = GetEntity()->GetRotation() * Vector3::Up;
-
-        // offset look_at by current position
-        look_at += position;
+        // extract basis vectors directly from world matrix to avoid quaternion decomposition instability
+        // row-major layout: row 0 = right (X), row 1 = up (Y), row 2 = forward (Z), row 3 = translation
+        const Matrix& m = GetEntity()->GetMatrix();
+        
+        Vector3 position = Vector3(m.m30, m.m31, m.m32);
+        Vector3 forward  = Vector3(m.m20, m.m21, m.m22).Normalized();
+        Vector3 up       = Vector3(m.m10, m.m11, m.m12).Normalized();
 
         // compute view matrix
-        return Matrix::CreateLookAtLH(position, look_at, up);
+        return Matrix::CreateLookAtLH(position, position + forward, up);
     }
 
     Matrix Camera::ComputeProjection(const float near_plane, const float far_plane)

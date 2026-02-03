@@ -1,5 +1,5 @@
 /*
-Copyright(c) 2015-2025 Panos Karabelas
+Copyright(c) 2015-2026 Panos Karabelas
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -56,6 +56,15 @@ void main_cs(uint3 thread_id : SV_DispatchThreadID)
         light_emissive       = surface.emissive * surface.albedo * 10.0f;
         alpha                = surface.alpha;
         distance_from_camera = surface.camera_to_pixel_length;
+        
+        // add ray traced global illumination (indirect diffuse)
+        // gi is treated as indirect irradiance, albedo is applied in final output below
+        // metals have no diffuse component, so scale by (1 - metallic)
+        if (is_restir_pt_enabled())
+        {
+            float3 gi = tex6.SampleLevel(samplers[sampler_point_clamp], surface.uv, 0).rgb;
+            light_diffuse += gi * (1.0f - surface.metallic);
+        }
     }
     
     // fog

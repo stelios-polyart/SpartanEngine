@@ -1,5 +1,5 @@
 /*
-Copyright(c) 2015-2025 Panos Karabelas
+Copyright(c) 2015-2026 Panos Karabelas
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -101,7 +101,7 @@ namespace spartan
 
     bool RHI_Device::IsValidResolution(const uint32_t width, const uint32_t height)
     {
-        return width  > 4 && width  <= m_max_texture_2d_dimension &&
-               height > 4 && height <= m_max_texture_2d_dimension;
+        return width  >= 4 && width  <= m_max_texture_2d_dimension &&
+               height >= 4 && height <= m_max_texture_2d_dimension;
     }
 }

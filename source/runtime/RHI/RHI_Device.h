@@ -1,5 +1,5 @@
 /*
-Copyright(c) 2015-2025 Panos Karabelas
+Copyright(c) 2015-2026 Panos Karabelas
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -47,7 +47,7 @@ namespace spartan
         static void* GetQueueRhiResource(const RHI_Queue_Type type);
 
         // descriptors
-        static void AllocateDescriptorSet(void*& resource, RHI_DescriptorSetLayout* descriptor_set_layout, const std::vector<RHI_Descriptor>& descriptors);
+        static void AllocateDescriptorSet(void*& resource, RHI_DescriptorSetLayout* descriptor_set_layout, const std::vector<RHI_DescriptorWithBinding>& descriptors);
         static std::unordered_map<uint64_t, RHI_DescriptorSet>& GetDescriptorSets();
         static void* GetDescriptorSet(const RHI_Device_Bindless_Resource resource_type);
         static void* GetDescriptorSetLayout(const RHI_Device_Bindless_Resource resource_type);

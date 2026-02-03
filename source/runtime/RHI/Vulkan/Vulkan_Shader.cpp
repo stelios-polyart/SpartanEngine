@@ -1,5 +1,5 @@
 /*
-Copyright(c) 2015-2025 Panos Karabelas
+Copyright(c) 2015-2026 Panos Karabelas
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -223,5 +223,44 @@ namespace spartan
         spirv_resources_to_descriptors(compiler, m_descriptors, resources.uniform_buffers,         RHI_Descriptor_Type::ConstantBuffer,        shader_stage);
         spirv_resources_to_descriptors(compiler, m_descriptors, resources.push_constant_buffers,   RHI_Descriptor_Type::PushConstantBuffer,    shader_stage);
         spirv_resources_to_descriptors(compiler, m_descriptors, resources.acceleration_structures, RHI_Descriptor_Type::AccelerationStructure, shader_stage);
+    }
+
+    void RHI_Shader::CompileFromSpirv(const RHI_Shader_Type type, const void* spirv_bytecode, uint64_t spirv_size, const string& name)
+    {
+        if (!spirv_bytecode || spirv_size == 0)
+        {
+            m_compilation_state = RHI_ShaderCompilationState::Failed;
+            return;
+        }
+
+        m_shader_type = type;
+        m_object_name = name;
+
+        // create shader module from spirv bytecode
+        VkShaderModule shader_module         = nullptr;
+        VkShaderModuleCreateInfo create_info = {};
+        create_info.sType                    = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
+        create_info.codeSize                 = static_cast<size_t>(spirv_size);
+        create_info.pCode                    = reinterpret_cast<const uint32_t*>(spirv_bytecode);
+
+        VkResult result = vkCreateShaderModule(RHI_Context::device, &create_info, nullptr, &shader_module);
+        if (result != VK_SUCCESS)
+        {
+            m_compilation_state = RHI_ShaderCompilationState::Failed;
+            return;
+        }
+
+        // name the shader module
+        RHI_Device::SetResourceName(static_cast<void*>(shader_module), RHI_Resource_Type::Shader, m_object_name.c_str());
+
+        // reflect shader resources
+        Reflect(
+            m_shader_type,
+            reinterpret_cast<const uint32_t*>(spirv_bytecode),
+            static_cast<uint32_t>(spirv_size / sizeof(uint32_t))
+        );
+
+        m_rhi_resource      = static_cast<void*>(shader_module);
+        m_compilation_state = RHI_ShaderCompilationState::Succeeded;
     }
 }

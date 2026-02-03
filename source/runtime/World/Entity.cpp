@@ -1,5 +1,5 @@
 /*
-Copyright(c) 2015-2025 Panos Karabelas
+Copyright(c) 2015-2026 Panos Karabelas
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -22,11 +22,13 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 //= INCLUDES ======================
 #include "pch.h"
 #include "Entity.h"
+#include "Prefab.h"
 #include "Components/Camera.h"
 #include "Components/Light.h"
 #include "Components/Physics.h"
 #include "Components/AudioSource.h"
 #include "Components/Terrain.h"
+#include "Components/Volume.h"
 #include "Components/ParticleSystem.h"
 
 SP_WARNINGS_OFF
@@ -188,6 +190,18 @@ namespace spartan
                 node.append_attribute("scale") = ss.str().c_str();
             }
 
+            // if this entity has prefab data, save the prefab reference instead of components/children
+            if (HasPrefabData())
+            {
+                pugi::xml_node prefab_node = node.append_child("prefab");
+                prefab_node.append_attribute("type") = m_prefab_type.c_str();
+                for (const auto& [key, value] : m_prefab_attributes)
+                {
+                    prefab_node.append_attribute(key.c_str()) = value.c_str();
+                }
+                return; // don't save components or children - prefab will recreate them
+            }
+
             // components
             for (shared_ptr<Component>& component : m_components)
             {
@@ -200,12 +214,21 @@ namespace spartan
             }
         }
 
-        // children
+        // children (skip transient entities - they are dynamically created and shouldn't be serialized)
         for (Entity* child : m_children)
         {
+            if (child->IsTransient())
+                continue;
+
             pugi::xml_node child_node = node.append_child("Entity");
             child->Save(child_node);
         }
+    }
+
+    void Entity::SetPrefabData(const string& type, const unordered_map<string, string>& attributes)
+    {
+        m_prefab_type       = type;
+        m_prefab_attributes = attributes;
     }
 
     void Entity::Load(pugi::xml_node& node)
@@ -234,12 +257,29 @@ namespace spartan
                 ss >> m_scale_local.x >> m_scale_local.y >> m_scale_local.z;
             }
 
-            // components
+            // components and prefabs
             for (pugi::xml_node component_node = node.first_child(); component_node; component_node = component_node.next_sibling())
             {
                 string type_name = component_node.name();
-                if (std::string(component_node.name()) == "Entity")
-                    continue; // skip children
+                if (type_name == "Entity")
+                    continue; // skip children, handled below
+
+                // check for prefab node - creates complex entity hierarchies
+                if (type_name == "prefab")
+                {
+                    // store prefab data for saving later
+                    string prefab_type = component_node.attribute("type").as_string();
+                    unordered_map<string, string> prefab_attributes;
+                    for (pugi::xml_attribute attr = component_node.first_attribute(); attr; attr = attr.next_attribute())
+                    {
+                        prefab_attributes[attr.name()] = attr.value();
+                    }
+                    SetPrefabData(prefab_type, prefab_attributes);
+
+                    // create the prefab
+                    Prefab::Create(component_node, this);
+                    continue;
+                }
 
                 ComponentType type = Component::StringToType(type_name);
                 if (type != ComponentType::Max)
@@ -287,14 +327,11 @@ namespace spartan
 
         switch (type)
         {
-            case ComponentType::AudioSource:        component = static_cast<Component*>(AddComponent<AudioSource>());        break;
-            case ComponentType::Camera:             component = static_cast<Component*>(AddComponent<Camera>());             break;
-            case ComponentType::Light:              component = static_cast<Component*>(AddComponent<Light>());              break;
-            case ComponentType::Renderable:         component = static_cast<Component*>(AddComponent<Renderable>());         break;
-            case ComponentType::Physics:            component = static_cast<Component*>(AddComponent<Physics>());            break;
-            case ComponentType::Terrain:            component = static_cast<Component*>(AddComponent<Terrain>());            break;
-            case ComponentType::ParticleSystem:     component = static_cast<Component*>(AddComponent<ParticleSystem>());     break;
-            default:                                component = nullptr;                                                     break;
+            // auto-generated from SP_COMPONENT_LIST
+            #define X(type, str) case ComponentType::type: component = static_cast<Component*>(AddComponent<type>()); break;
+            SP_COMPONENT_LIST
+            #undef X
+            default: component = nullptr; break;
         }
 
         SP_ASSERT(component != nullptr);
@@ -347,17 +384,18 @@ namespace spartan
             m_matrix = m_matrix_local;
         }
 
-        // update directions
+        // update directions directly from matrix (avoids unstable quaternion decomposition)
+        // row-major layout: row 0 = right (X), row 1 = up (Y), row 2 = forward (Z)
         {
-            // z
-            m_forward  = Vector3::Normalize(GetRotation() * Vector3::Forward);
-            m_backward = -m_forward;
-            // y
-            m_up       = Vector3::Normalize(GetRotation() * Vector3::Up);
-            m_down     = -m_up;
             // x
-            m_right    = Vector3::Normalize(GetRotation() * Vector3::Right);
+            m_right    = Vector3::Normalize(Vector3(m_matrix.m00, m_matrix.m01, m_matrix.m02));
             m_left     = -m_right;
+            // y
+            m_up       = Vector3::Normalize(Vector3(m_matrix.m10, m_matrix.m11, m_matrix.m12));
+            m_down     = -m_up;
+            // z
+            m_forward  = Vector3::Normalize(Vector3(m_matrix.m20, m_matrix.m21, m_matrix.m22));
+            m_backward = -m_forward;
         }
 
         // mark update
@@ -389,10 +427,35 @@ namespace spartan
 
     void Entity::SetRotation(const Quaternion& rotation)
     {
-        if (GetRotation() == rotation)
-            return;
+        // compute local rotation without using unstable GetRotation() decomposition
+        Quaternion local_rotation;
+        if (!GetParent())
+        {
+            local_rotation = rotation;
+        }
+        else
+        {
+            // compute parent's world rotation by composing local rotations up the hierarchy
+            // world_rot = root_local * ... * parent_local (compose from root down)
+            vector<Quaternion> rotations;
+            Entity* ancestor = GetParent();
+            while (ancestor)
+            {
+                rotations.push_back(ancestor->GetRotationLocal());
+                ancestor = ancestor->GetParent();
+            }
+            
+            // compose from root (back of vector) to parent (front of vector)
+            Quaternion parent_world_rotation = Quaternion::Identity;
+            for (auto it = rotations.rbegin(); it != rotations.rend(); ++it)
+            {
+                parent_world_rotation = parent_world_rotation * (*it);
+            }
+            
+            local_rotation = parent_world_rotation.Inverse() * rotation;
+        }
 
-        SetRotationLocal(!GetParent() ? rotation : GetParent()->GetRotation().Inverse() * rotation);
+        SetRotationLocal(local_rotation);
     }
 
     void Entity::SetRotationLocal(const Quaternion& rotation)
@@ -528,6 +591,35 @@ namespace spartan
         {
             m_children.emplace_back(child);
         }
+    }
+
+    void Entity::MoveChildToIndex(Entity* child, uint32_t index)
+    {
+        SP_ASSERT(child != nullptr);
+        lock_guard lock(m_mutex_children);
+
+        // find the child in the list
+        auto it = find(m_children.begin(), m_children.end(), child);
+        if (it == m_children.end())
+            return; // child not found
+
+        // get current position before removing
+        uint32_t current_index = static_cast<uint32_t>(distance(m_children.begin(), it));
+
+        // remove from current position
+        m_children.erase(it);
+
+        // adjust target index if the child was before the target position
+        // (removing it shifts all subsequent indices down by 1)
+        if (current_index < index && index > 0)
+            index--;
+
+        // clamp index to valid range
+        if (index > m_children.size())
+            index = static_cast<uint32_t>(m_children.size());
+
+        // insert at new position
+        m_children.insert(m_children.begin() + index, child);
     }
 
     void Entity::RemoveChild(Entity* child, bool update_child_with_null_parent)

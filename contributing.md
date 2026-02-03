@@ -22,10 +22,12 @@ This platform offers you the freedom to explore, experiment, and excel. Make the
 - Open a Pull Request from your fork/branch → SpartanEngine.
 
 # Pull Request (PR) Guidelines
-- Functionality: Ensure your PR is functional. While it can be incomplete, the code it introduces should be operational.
-- Collaboration restrictions: Other contributors generally can't modify your PR directly. Hence, non-functional PRs can obstruct the project's progress.
-- Iterative improvements: It's okay for your PR to be a part of a larger task. Incremental, functional changes are encouraged.
-- Communication: If you're looking for collaboration on your PR, communicate this in your PR description or through our Discord community.
+- **Functionality:** Ensure your PR is functional. While it can be incomplete, the code it introduces should be operational.
+- **Collaboration restrictions:** Other contributors generally can't modify your PR directly. Hence, non-functional PRs can obstruct the project's progress.
+- **Iterative improvements:** It's okay for your PR to be a part of a larger task. Incremental, functional changes are encouraged.
+- **Focus:** Keep PRs focused on one issue or change. Avoid touching unrelated aspects of the engine, as it makes review harder and increases merge conflicts.
+- **Communication:** If you're looking for collaboration on your PR, communicate this in your PR description or through our Discord community.
+- **Nature of work:** This is an open source project, not a classroom. Contributors are expected to be self-sufficient in their implementation. Maintainers provide architectural direction, not private tutoring or line-by-line coding instruction.
 
 # Coding style
 
@@ -72,3 +74,11 @@ if (condition)
 ```
 ## Const correctness
 Try to use const for function parameters, if needed. But don't worry too much about const correctness.
+
+# The Bigger Picture
+
+Everything above will make you a solid contributor. But if you want to do exceptional work - the kind you're proud of - there's a bigger vision waiting.
+
+We're building something inspired by [this video](https://youtu.be/R3QvniaZ5qM?t=53) that captured millions: a cinematic night city running in real-time on Spartan. Watch it. Then look at the engine. The delta between them is your roadmap. You don't need anyone to assign you tasks. Your taste tells you what's not good enough. Your skills tell you what you can fix.
+
+**[Read the full plan](https://github.com/PanosK92/SpartanEngine/blob/master/plan.md)** - and see how far we can go together.

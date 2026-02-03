@@ -1,5 +1,5 @@
 /*
-Copyright(c) 2015-2025 Panos Karabelas
+Copyright(c) 2015-2026 Panos Karabelas
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -25,6 +25,42 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #include "shadow_mapping.hlsl"
 #include "fog.hlsl"
 //============================
+
+// Cloud shadow map sampling
+// tex3 is bound as the cloud shadow map in Pass_Light
+float sample_cloud_shadow(float3 world_pos)
+{
+    // skip if cloud shadows are disabled
+    if (buffer_frame.cloud_shadows <= 0.0 || buffer_frame.cloud_coverage <= 0.0)
+        return 1.0;
+    
+    // cloud shadow map covers 10km x 10km area centered on camera
+    float shadow_map_size = 10000.0;
+    float2 relative_pos = world_pos.xz - buffer_frame.camera_position.xz;
+    float2 uv = relative_pos / shadow_map_size + 0.5;
+    
+    // out of bounds check
+    if (any(uv < 0.0) || any(uv > 1.0))
+        return 1.0;
+    
+    // sample cloud shadow (tex3 is the cloud shadow map)
+    float shadow = tex3.SampleLevel(GET_SAMPLER(sampler_bilinear_clamp), uv, 0).r;
+    
+    return shadow;
+}
+
+// ray traced shadow sampling
+// tex4 is bound as the ray traced shadow texture in Pass_Light
+float sample_ray_traced_shadow(float2 uv)
+{
+    if (!is_ray_traced_shadows_enabled())
+        return 1.0;
+    
+    // sample ray traced shadow (tex4 is the ray traced shadow texture)
+    float shadow = tex4.SampleLevel(GET_SAMPLER(sampler_bilinear_clamp), uv, 0).r;
+    
+    return shadow;
+}
 
 // Subsurface scattering with wrapped diffuse and thickness estimation
 float3 subsurface_scattering(Surface surface, Light light, AngularInfo angular_info)
@@ -97,7 +133,6 @@ void main_cs(uint3 thread_id : SV_DispatchThreadID)
     // initialize output accumulators
     float3 out_diffuse    = 0.0f;
     float3 out_specular   = 0.0f;
-    float  out_shadow     = 1.0f;
     float3 out_volumetric = 0.0f;
 
     // pre-compute common terms (alpha and occlusion)
@@ -120,8 +155,18 @@ void main_cs(uint3 thread_id : SV_DispatchThreadID)
         if (!surface.is_sky())
         {
             // compute shadow term
-            if (light.has_shadows())
+            // for directional lights: ray traced shadows are mutually exclusive with rasterized/screen-space shadows
+            bool use_ray_traced_shadow = light.is_directional() && is_ray_traced_shadows_enabled();
+            
+            if (use_ray_traced_shadow)
             {
+                // ray traced shadows for directional light
+                L_shadow = sample_ray_traced_shadow(surface.uv);
+                light.radiance *= L_shadow;
+            }
+            else if (light.has_shadows())
+            {
+                // rasterized shadow mapping
                 L_shadow = compute_shadow(surface, light);
 
                 // combine with screen-space shadows if available
@@ -132,6 +177,14 @@ void main_cs(uint3 thread_id : SV_DispatchThreadID)
 
                 // apply shadow to light radiance
                 light.radiance *= L_shadow;
+            }
+            
+            // apply cloud shadows for directional lights (always, regardless of shadow method)
+            if (light.is_directional())
+            {
+                float cloud_shadow = sample_cloud_shadow(surface.position);
+                L_shadow = min(L_shadow, cloud_shadow);
+                light.radiance *= cloud_shadow;
             }
 
             // build angular information for brdf calculations
@@ -188,13 +241,11 @@ void main_cs(uint3 thread_id : SV_DispatchThreadID)
         // accumulate into output buffers
         out_diffuse    += write_diffuse;
         out_specular   += write_specular;
-        out_shadow     *= write_shadow;  // multiply shadows (all lights must be unshadowed)
         out_volumetric += write_volumetric;
     }
 
     // write results to output buffers
     tex_uav[thread_id.xy]  = validate_output(float4(out_diffuse,    1.0f));
     tex_uav2[thread_id.xy] = validate_output(float4(out_specular,   1.0f));
-    tex_uav3[thread_id.xy] = validate_output(out_shadow);
-    tex_uav4[thread_id.xy] = validate_output(float4(out_volumetric, 1.0f));
+    tex_uav3[thread_id.xy] = validate_output(float4(out_volumetric, 1.0f));
 }

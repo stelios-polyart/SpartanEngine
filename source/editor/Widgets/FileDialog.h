@@ -1,5 +1,5 @@
 /*
-Copyright(c) 2015-2025 Panos Karabelas
+Copyright(c) 2015-2026 Panos Karabelas
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -111,6 +111,9 @@ public:
     auto GetOperation() const { return m_operation; }
     void SetOperation(FileDialog_Operation operation);
 
+    // path
+    void SetCurrentPath(const std::string& path);
+
     // shows the dialog and returns true if a selection was made
     bool Show(bool* is_visible, Editor* editor, std::string* directory = nullptr, std::string* file_path = nullptr);
     void SetCallbackOnItemClicked(const std::function<void(const std::string&)>& callback) { m_callback_on_item_clicked = callback; }
@@ -154,6 +157,7 @@ private:
     spartan::math::Vector2 m_item_size;
     ImGuiTextFilter m_search_filter;
     std::string m_current_path;
+    std::string m_root_path;
     std::mutex m_mutex_items;
 
     // navigation history

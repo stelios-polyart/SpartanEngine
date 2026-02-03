@@ -1,5 +1,5 @@
 /*
-Copyright(c) 2015-2025 Panos Karabelas
+Copyright(c) 2015-2026 Panos Karabelas
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -134,6 +134,13 @@ namespace spartan
                 // determine if this is a wheel or gamepad
                 bool is_wheel                = (joystick_type == SDL_JOYSTICK_TYPE_WHEEL || name.find("wheel") != string::npos);
                 ControllerType detected_type = is_wheel ? ControllerType::SteeringWheel : ControllerType::Gamepad;
+
+                // skip if detected type doesn't match what we're looking for
+                if (detected_type != controller->type)
+                {
+                    SDL_CloseJoystick(joystick);
+                    continue;
+                }
     
                 // for gamepads, try to open as sdl_gamepad
                 if (detected_type == ControllerType::Gamepad && SDL_IsGamepad(instance_id))

@@ -1,5 +1,5 @@
 /*
-Copyright(c) 2015-2025 Panos Karabelas
+Copyright(c) 2015-2026 Panos Karabelas
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -24,7 +24,9 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #include "Viewport.h"
 #include "AssetBrowser.h"
 #include "WorldViewer.h"
+#include "Properties.h"
 #include "RHI/RHI_Device.h"
+#include "Rendering/Renderer.h"
 #include "../ImGui/ImGui_Extension.h"
 #include "../ImGui/ImGui_TransformGizmo.h"
 #include "Settings.h"
@@ -117,12 +119,54 @@ void Viewport::OnTickVisible()
     else if (camera && ImGui::IsMouseClicked(0) && ImGui::IsItemHovered() && ImGui::TransformGizmo::allow_picking())
     {
         camera->Pick();
-        // update the world viewer to reflect selection (uses primary selected entity for Properties)
-        m_editor->GetWidget<WorldViewer>()->SetSelectedEntity(camera->GetSelectedEntity());
+
+        // when ctrl is held, Pick() already handled multi-selection via ToggleSelection(),
+        // so we only update the properties panel without overwriting the camera's selection
+        if (Input::GetKey(KeyCode::Ctrl_Left) || Input::GetKey(KeyCode::Ctrl_Right))
+        {
+            Properties::Inspect(camera->GetSelectedEntity());
+        }
+        else
+        {
+            m_editor->GetWidget<WorldViewer>()->SetSelectedEntity(camera->GetSelectedEntity());
+        }
+    }
+
+    // Ctrl+D to duplicate selected entities
+    if (camera && ImGui::IsWindowFocused() && Input::GetKey(KeyCode::Ctrl_Left) && Input::GetKeyDown(KeyCode::D))
+    {
+        const std::vector<Entity*>& selected_entities = camera->GetSelectedEntities();
+        if (!selected_entities.empty())
+        {
+            // clone all selected entities
+            std::vector<Entity*> cloned_entities;
+            for (Entity* entity : selected_entities)
+            {
+                if (entity)
+                {
+                    Entity* cloned = entity->Clone();
+                    if (cloned)
+                    {
+                        cloned_entities.push_back(cloned);
+                    }
+                }
+            }
+
+            // select the cloned entities instead
+            if (!cloned_entities.empty())
+            {
+                camera->ClearSelection();
+                for (Entity* cloned : cloned_entities)
+                {
+                    camera->AddToSelection(cloned);
+                }
+                m_editor->GetWidget<WorldViewer>()->SetSelectedEntity(cloned_entities[0]);
+            }
+        }
     }
 
     // entity transform gizmo (will only show if entities have been picked)
-    if (Renderer::GetOption<bool>(spartan::Renderer_Option::TransformHandle))
+    if (cvar_transform_handle.GetValueAs<bool>())
     {
         if (camera) // skip if no camera
         {

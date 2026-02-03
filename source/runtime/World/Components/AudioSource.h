@@ -1,5 +1,5 @@
 /*
-Copyright(c) 2015-2025 Panos Karabelas
+Copyright(c) 2015-2026 Panos Karabelas
 
 permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "software"), to deal
@@ -24,7 +24,9 @@ connection with the software or the use or other dealings in the software.
 //= includes =========
 #include "Component.h"
 #include <string>
-//=====================
+#include <vector>
+#include <functional>
+//====================
 
 struct SDL_AudioStream;
 struct SDL_AudioSpec;
@@ -35,6 +37,10 @@ namespace audio_clip_cache
 
 namespace spartan
 {
+    // callback type for audio synthesis: generates stereo samples into buffer
+    // parameters: output buffer (stereo interleaved), number of sample frames
+    using SynthesisCallback = std::function<void(float*, int)>;
+
     class AudioSource : public Component
     {
     public:
@@ -52,6 +58,12 @@ namespace spartan
 
         void SetAudioClip(const std::string& file_path);
         const std::string& GetAudioClipName() const { return m_name; };
+
+        // synthesis mode - generates audio procedurally instead of playing a clip
+        void SetSynthesisMode(bool enabled, SynthesisCallback callback = nullptr);
+        bool IsSynthesisMode() const { return m_synthesis_mode; }
+        void StartSynthesis();  // start synthesis playback
+        void StopSynthesis();   // stop synthesis playback
 
         bool IsPlaying() { return m_is_playing; }
         void PlayClip();
@@ -76,9 +88,21 @@ namespace spartan
         float GetPitch() const { return m_pitch; }
         void SetPitch(const float pitch);
 
+        // reverb
+        bool GetReverbEnabled() const                     { return m_reverb_enabled; }
+        void SetReverbEnabled(const bool enabled)         { m_reverb_enabled = enabled; }
+        float GetReverbRoomSize() const                   { return m_reverb_room_size; }
+        void SetReverbRoomSize(const float room_size);
+        float GetReverbDecay() const                      { return m_reverb_decay; }
+        void SetReverbDecay(const float decay);
+        float GetReverbWet() const                        { return m_reverb_wet; }
+        void SetReverbWet(const float wet);
+
     private:
         void FeedAudioChunk();
+        void FeedSynthesizedChunk();
 
+        std::vector<float> m_stereo_chunk; // reused to avoid per-call allocation
         std::string m_name                             = "N/A";
         bool m_is_3d                                   = false;
         bool m_mute                                    = false;
@@ -95,5 +119,19 @@ namespace spartan
         math::Vector3 position_previous                = math::Vector3::Zero;
         std::shared_ptr<audio_clip_cache::AudioClip> m_clip = nullptr;
         std::string m_file_path;
+
+        // synthesis mode
+        bool m_synthesis_mode                  = false;
+        SynthesisCallback m_synthesis_callback = nullptr;
+
+        // reverb state
+        bool m_reverb_enabled         = false;
+        float m_reverb_room_size      = 0.5f;  // 0.0 to 1.0, affects delay times
+        float m_reverb_decay          = 0.5f;  // 0.0 to 1.0, feedback factor
+        float m_reverb_wet            = 0.3f;  // 0.0 to 1.0, wet/dry mix
+        std::vector<float> m_reverb_buffer_l;  // circular buffer for left channel
+        std::vector<float> m_reverb_buffer_r;  // circular buffer for right channel
+        uint32_t m_reverb_write_pos   = 0;     // write position in reverb buffers
+        static constexpr uint32_t reverb_buffer_size = 48000; // ~1 second at 48khz
     };
 }

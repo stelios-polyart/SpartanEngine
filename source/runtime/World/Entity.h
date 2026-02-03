@@ -1,5 +1,5 @@
 /*
-Copyright(c) 2015-2025 Panos Karabelas
+Copyright(c) 2015-2026 Panos Karabelas
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -25,6 +25,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #include <atomic>
 #include <array>
 #include <mutex>
+#include <unordered_map>
 #include "World.h"
 #include "Components/Component.h"
 #include "../Math/Quaternion.h"
@@ -152,6 +153,7 @@ namespace spartan
         void AcquireChildren();
         void RemoveChild(Entity* child, bool update_child_with_null_parent = true);
         void AddChild(Entity* child);
+        void MoveChildToIndex(Entity* child, uint32_t index);
         bool IsDescendantOf(Entity* transform) const;
         void GetDescendants(std::vector<Entity*>* descendants);
         Entity* GetDescendantByName(const std::string& name);
@@ -168,8 +170,17 @@ namespace spartan
         void SetMatrixPrevious(const math::Matrix& matrix) { m_matrix_previous = matrix; }
         float GetTimeSinceLastTransform() const            { return m_time_since_last_transform_sec; }
 
+        // prefab support - if set, this entity saves as a prefab reference instead of its children
+        void SetPrefabData(const std::string& type, const std::unordered_map<std::string, std::string>& attributes);
+        bool HasPrefabData() const { return !m_prefab_type.empty(); }
+
+        // transient entities are not serialized (e.g. dynamically created entities like flashlights)
+        void SetTransient(bool transient)  { m_transient = transient; }
+        bool IsTransient() const           { return m_transient; }
+
     private:
         std::atomic<bool> m_is_active = true;
+        bool m_transient              = false; // transient entities are not serialized
         std::array<std::shared_ptr<Component>, static_cast<uint32_t>(ComponentType::Max)> m_components;
 
         void UpdateTransform();
@@ -199,5 +210,9 @@ namespace spartan
         std::mutex m_mutex_children;
         std::mutex m_mutex_parent;
         float m_time_since_last_transform_sec = 0.0f;
+
+        // prefab data (if this entity was created from a prefab)
+        std::string m_prefab_type;
+        std::unordered_map<std::string, std::string> m_prefab_attributes;
     };
 }

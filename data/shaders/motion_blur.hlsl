@@ -1,5 +1,5 @@
 /*
-Copyright(c) 2015-2025 Panos Karabelas
+Copyright(c) 2015-2026 Panos Karabelas
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -19,119 +19,330 @@ IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 */
 
-//= INCLUDES =========
+//= includes =========
 #include "common.hlsl"
 //====================
 
-static const uint g_motion_blur_samples = 32;
-static const float g_velocity_scale     = 1.0f;
-static const float g_velocity_threshold = 0.005f;
-static const float g_depth_scale        = 1.0f;
-static const float g_color_scale        = 0.5f;
+// tuning parameters
+static const int   SAMPLE_COUNT           = 11;    // samples per direction (total = 2 * count + 1 = 23)
+static const float MAX_BLUR_RADIUS_PIXELS = 48.0f; // maximum blur extent in pixels
+static const float MIN_BLUR_THRESHOLD     = 0.75f; // minimum velocity in pixels to trigger blur
+static const float DEPTH_SCALE            = 50.0f; // depth comparison sensitivity
+static const float CENTER_WEIGHT          = 1.5f;  // weight for center sample (higher = sharper center)
 
-groupshared uint g_tile_max_velocity_sqr;
+// reference frame time - motion blur is normalized to 60fps baseline
+// this ensures consistent blur regardless of actual framerate
+static const float TARGET_FRAME_TIME = 1.0f / 60.0f;
 
-// use dilated velocity to capture the maximum motion in a 3x3 neighborhood
-float2 get_velocity_dilated(float2 uv, float2 resolution_out)
+// artistic control - prevents excessive blur from slow shutter speeds
+// without this, dark scenes with 1/30s shutter would have 2x blur which looks bad
+static const float MAX_SHUTTER_RATIO = 1.5f;
+
+// velocity filtering parameters
+static const int   VELOCITY_FILTER_SAMPLES = 5;   // samples for velocity filtering
+static const float VELOCITY_FILTER_RADIUS  = 3.0f; // radius in pixels
+
+// soft depth comparison (guerrilla games / killzone approach)
+// returns 1 when depth_a is behind or equal to depth_b
+float soft_depth_compare(float depth_a, float depth_b)
 {
-    float2 texel_size   = 1.0f / resolution_out;
-    float2 max_velocity = 0.0f;
-    float max_len       = 0.0f;
-    [unroll]
-    for (int y = -1; y <= 1; ++y)
+    return saturate(1.0f - (depth_a - depth_b) * DEPTH_SCALE);
+}
+
+// sample weight falloff - samples further from center contribute less
+// uses a smooth gaussian-like falloff for natural blur edges
+float sample_falloff(float t)
+{
+    // hermite smoothstep gives nice soft edges
+    float inv_t = 1.0f - t;
+    return inv_t * inv_t * (3.0f - 2.0f * inv_t);
+}
+
+// velocity magnitude weight - determines how much a sample should contribute
+// based on its own velocity vs the center velocity
+float velocity_weight(float sample_velocity_length, float center_velocity_length, float sample_distance)
+{
+    // sample contributes if its blur would reach the center pixel
+    float coverage = sample_velocity_length - sample_distance;
+    return saturate(coverage / (center_velocity_length + FLT_MIN));
+}
+
+// filter velocity to reduce noise from jittery mouse/input
+// uses a small neighborhood to find the dominant velocity direction
+float2 filter_velocity(float2 uv, float2 texel_size, float2 center_velocity)
+{
+    float center_length = length(center_velocity);
+
+    // for very low velocities, don't bother filtering
+    if (center_length < 0.001f)
+        return center_velocity;
+
+    float2 velocity_sum = center_velocity;
+    float weight_sum = 1.0f;
+
+    // sample pattern: cross + diagonals for good coverage
+    static const float2 offsets[8] =
     {
-        [unroll]
-        for (int x = -1; x <= 1; ++x)
+        float2(-1.0f,  0.0f),
+        float2( 1.0f,  0.0f),
+        float2( 0.0f, -1.0f),
+        float2( 0.0f,  1.0f),
+        float2(-0.7f, -0.7f),
+        float2( 0.7f, -0.7f),
+        float2(-0.7f,  0.7f),
+        float2( 0.7f,  0.7f)
+    };
+
+    float2 center_dir = center_velocity / (center_length + FLT_MIN);
+
+    [unroll]
+    for (int i = 0; i < 8; ++i)
+    {
+        float2 sample_uv = uv + offsets[i] * texel_size * VELOCITY_FILTER_RADIUS;
+        float2 sample_vel = tex_velocity.SampleLevel(samplers[sampler_bilinear_clamp], sample_uv, 0).xy;
+        float sample_len = length(sample_vel);
+
+        if (sample_len > 0.001f)
         {
-            float2 offset = float2(x, y) * texel_size;
-            float2 v      = tex_velocity.SampleLevel(samplers[sampler_point_clamp], (uv + offset) * buffer_frame.resolution_scale, 0).xy;
-            float len     = length(v);
-            if (len > max_len)
-            {
-                max_len = len;
-                max_velocity = v;
-            }
+            float2 sample_dir = sample_vel / sample_len;
+
+            // weight by direction similarity - prefer velocities pointing same way
+            float dir_weight = max(0.0f, dot(center_dir, sample_dir));
+
+            // weight by magnitude similarity - prefer similar speeds
+            float mag_ratio = min(center_length, sample_len) / (max(center_length, sample_len) + FLT_MIN);
+
+            // spatial weight - closer samples matter more
+            float spatial_weight = 1.0f / (1.0f + length(offsets[i]));
+
+            float weight = dir_weight * mag_ratio * spatial_weight;
+
+            velocity_sum += sample_vel * weight;
+            weight_sum += weight;
         }
     }
-    return max_velocity;
+
+    return velocity_sum / weight_sum;
+}
+
+// compute velocity confidence - how consistent is motion in the neighborhood
+// returns 0-1 where 1 = very consistent, 0 = chaotic/jittery
+float compute_velocity_confidence(float2 uv, float2 velocity, float2 texel_size)
+{
+    float vel_length = length(velocity);
+    if (vel_length < 0.001f)
+        return 1.0f;
+
+    float2 vel_dir = velocity / vel_length;
+    float confidence = 0.0f;
+
+    // check velocity consistency at a few points along the motion direction
+    [unroll]
+    for (int i = 0; i < VELOCITY_FILTER_SAMPLES; ++i)
+    {
+        float t = (float)(i + 1) / (float)(VELOCITY_FILTER_SAMPLES + 1);
+        float2 offset = vel_dir * t * VELOCITY_FILTER_RADIUS * 2.0f;
+        float2 sample_uv = uv + offset * texel_size;
+
+        float2 sample_vel = tex_velocity.SampleLevel(samplers[sampler_bilinear_clamp], sample_uv, 0).xy;
+        float sample_len = length(sample_vel);
+
+        if (sample_len > 0.001f)
+        {
+            float2 sample_dir = sample_vel / sample_len;
+
+            // direction consistency
+            float dir_match = dot(vel_dir, sample_dir);
+
+            // magnitude consistency (don't penalize too harshly)
+            float mag_ratio = min(vel_length, sample_len) / (max(vel_length, sample_len) + FLT_MIN);
+            mag_ratio = lerp(mag_ratio, 1.0f, 0.5f); // soften magnitude requirement
+
+            confidence += max(0.0f, dir_match) * mag_ratio;
+        }
+        else
+        {
+            // static neighbor - partial confidence
+            confidence += 0.3f;
+        }
+    }
+
+    confidence /= (float)VELOCITY_FILTER_SAMPLES;
+
+    // apply curve - be forgiving of slight variations
+    return smoothstep(0.2f, 0.8f, confidence);
+}
+
+// main reconstruction filter
+float4 motion_blur_reconstruction(
+    float2 uv,
+    float2 pixel_coord,
+    float2 resolution,
+    float  shutter_ratio,
+    float  noise
+)
+{
+    float2 texel_size = 1.0f / resolution;
+
+    // sample center
+    float4 center_color = tex.SampleLevel(samplers[sampler_bilinear_clamp], uv, 0);
+    float  center_depth = get_linear_depth(uv);
+
+    // get and filter velocity for smoother results
+    float2 raw_velocity = tex_velocity.SampleLevel(samplers[sampler_bilinear_clamp], uv, 0).xy;
+    float2 velocity = filter_velocity(uv, texel_size, raw_velocity);
+
+    // convert to pixels
+    float2 velocity_pixels = velocity * resolution;
+    float  blur_length_raw = length(velocity_pixels);
+
+    // early exit for static pixels
+    if (blur_length_raw < MIN_BLUR_THRESHOLD)
+        return center_color;
+
+    // compute velocity confidence to reduce blur for jittery motion
+    float confidence = compute_velocity_confidence(uv, velocity, texel_size);
+
+    // apply shutter ratio and confidence
+    // confidence scales the blur - jittery motion = less blur
+    float blur_length = blur_length_raw * shutter_ratio * lerp(0.3f, 1.0f, confidence);
+
+    // exit if blur became too small after adjustments
+    if (blur_length < MIN_BLUR_THRESHOLD)
+        return center_color;
+
+    // clamp to max radius
+    float clamped_blur = min(blur_length, MAX_BLUR_RADIUS_PIXELS);
+
+    // normalized direction
+    float2 blur_dir = velocity_pixels / (blur_length_raw + FLT_MIN);
+
+    // accumulation with center sample
+    float4 color_sum = center_color * CENTER_WEIGHT;
+    float  weight_sum = CENTER_WEIGHT;
+
+    // per-pixel noise for temporal stability (integrates with TAA)
+    float jitter = (noise - 0.5f) * 0.5f;
+
+    // sample in both directions along velocity
+    [unroll]
+    for (int i = 1; i <= SAMPLE_COUNT; ++i)
+    {
+        // normalized sample position [0, 1]
+        float t = (float)i / (float)SAMPLE_COUNT;
+
+        // apply jitter for temporal smoothing
+        float t_jittered = saturate(t + jitter / (float)SAMPLE_COUNT);
+
+        // sample distance in pixels
+        float sample_dist = t_jittered * clamped_blur;
+
+        // uv offset
+        float2 offset = blur_dir * sample_dist * texel_size;
+
+        // forward and backward sample positions
+        float2 uv_fwd = uv + offset;
+        float2 uv_bwd = uv - offset;
+
+        // base falloff weight
+        float falloff = sample_falloff(t);
+
+        // forward sample
+        if (is_valid_uv(uv_fwd))
+        {
+            float4 sample_color = tex.SampleLevel(samplers[sampler_bilinear_clamp], uv_fwd, 0);
+            float  sample_depth = get_linear_depth(uv_fwd);
+            float2 sample_vel   = tex_velocity.SampleLevel(samplers[sampler_bilinear_clamp], uv_fwd, 0).xy;
+            float  sample_blur  = length(sample_vel * resolution) * shutter_ratio;
+
+            // depth-aware weighting
+            float depth_weight_fg = soft_depth_compare(center_depth, sample_depth); // sample in front
+            float depth_weight_bg = soft_depth_compare(sample_depth, center_depth); // center in front
+
+            // velocity-based weight
+            float vel_weight = velocity_weight(min(sample_blur, MAX_BLUR_RADIUS_PIXELS), clamped_blur, sample_dist);
+
+            // combine weights
+            float weight = falloff * (depth_weight_fg + depth_weight_bg * vel_weight);
+            weight = max(weight, 0.01f); // minimum weight to prevent harsh cutoffs
+
+            color_sum += sample_color * weight;
+            weight_sum += weight;
+        }
+
+        // backward sample
+        if (is_valid_uv(uv_bwd))
+        {
+            float4 sample_color = tex.SampleLevel(samplers[sampler_bilinear_clamp], uv_bwd, 0);
+            float  sample_depth = get_linear_depth(uv_bwd);
+            float2 sample_vel   = tex_velocity.SampleLevel(samplers[sampler_bilinear_clamp], uv_bwd, 0).xy;
+            float  sample_blur  = length(sample_vel * resolution) * shutter_ratio;
+
+            // depth-aware weighting
+            float depth_weight_fg = soft_depth_compare(center_depth, sample_depth);
+            float depth_weight_bg = soft_depth_compare(sample_depth, center_depth);
+
+            // velocity-based weight
+            float vel_weight = velocity_weight(min(sample_blur, MAX_BLUR_RADIUS_PIXELS), clamped_blur, sample_dist);
+
+            // combine weights
+            float weight = falloff * (depth_weight_fg + depth_weight_bg * vel_weight);
+            weight = max(weight, 0.01f);
+
+            color_sum += sample_color * weight;
+            weight_sum += weight;
+        }
+    }
+
+    // final result
+    float4 result = color_sum / weight_sum;
+    result.a = center_color.a;
+
+    return result;
 }
 
 [numthreads(THREAD_GROUP_COUNT_X, THREAD_GROUP_COUNT_Y, 1)]
-void main_cs(uint3 thread_id : SV_DispatchThreadID, uint3 group_thread_id : SV_GroupThreadID, uint group_index : SV_GroupIndex)
+void main_cs(uint3 thread_id : SV_DispatchThreadID)
 {
-    float2 resolution_out;
-    tex_uav.GetDimensions(resolution_out.x, resolution_out.y);
-    float2 uv           = (thread_id.xy + 0.5f) / resolution_out;
-    float4 center_color = tex[thread_id.xy];
-    float2 velocity     = get_velocity_dilated(uv, resolution_out);
+    // get dimensions
+    float2 resolution_color;
+    tex.GetDimensions(resolution_color.x, resolution_color.y);
 
-    // convert velocity from NDC to UV space
-    float2 velocity_UV = velocity / 2.0f;
+    float2 resolution_output;
+    tex_uav.GetDimensions(resolution_output.x, resolution_output.y);
 
-    // compute motion blur strength from camera's shutter speed
-    float camera_shutter_speed = pass_get_f3_value().x;
-    float motion_blur_strength = saturate(camera_shutter_speed * 1.5f);
+    // compute uv
+    uint2  pixel_coord = thread_id.xy;
+    float2 uv = (pixel_coord + 0.5f) / resolution_output;
 
-    // scale velocity by motion blur strength, delta time, and additional scale factor
-    velocity_UV *= motion_blur_strength * g_velocity_scale / (buffer_frame.delta_time + FLT_MIN);
-
-    // compute max velocity squared for the tile
-    if (group_index == 0)
-    {
-        g_tile_max_velocity_sqr = 0;
-    }
-    GroupMemoryBarrierWithGroupSync();
-
-    uint velocity_sqr = (uint) (dot(velocity_UV, velocity_UV) * 1000000.0f);
-    InterlockedMax(g_tile_max_velocity_sqr, velocity_sqr);
-
-    GroupMemoryBarrierWithGroupSync();
-
-    // early exit for low-motion tiles
-    if (sqrt(float(g_tile_max_velocity_sqr) / 1000000.0f) < g_velocity_threshold)
-    {
-        tex_uav[thread_id.xy] = center_color;
+    // bounds check
+    if (any(pixel_coord >= uint2(resolution_output)))
         return;
-    }
 
-    // early exit for low-motion pixels
-    if (length(velocity_UV) < g_velocity_threshold)
-    {
-        tex_uav[thread_id.xy] = center_color;
-        return;
-    }
+    // get shutter speed from camera
+    // shutter_ratio = shutter_speed / frame_time
+    // - ratio < 1: fast shutter, freezes motion (less blur)
+    // - ratio = 1: shutter matches frame time, standard blur
+    // - ratio > 1: slow shutter, motion trails (more blur)
+    float shutter_speed = pass_get_f3_value().x;
+    float shutter_ratio = shutter_speed / TARGET_FRAME_TIME;
 
-    float4 color            = center_color;
-    float total_weight      = 1.0f;
-    float center_depth      = get_linear_depth(uv);
-    float3 center_color_rgb = center_color.rgb;
+    // clamp shutter ratio to prevent excessive blur in dark scenes
+    // physically, dark scenes need slower shutter for exposure, but that
+    // results in unreasonably long motion trails that look bad
+    shutter_ratio = clamp(shutter_ratio, 0.0f, MAX_SHUTTER_RATIO);
 
-    [unroll]
-    for (uint i = 1; i < g_motion_blur_samples; ++i)
-    {
-        float t              = (float(i) / float(g_motion_blur_samples - 1)) - 0.5f;
-        float2 sample_offset = velocity_UV * t;
-        float2 sample_uv     = uv + sample_offset;
+    // per-pixel temporal noise for TAA integration
+    float noise = noise_interleaved_gradient(float2(pixel_coord), true);
 
-        // zero out weight for off-screen samples without branching (allows full unroll)
-        float is_on_screen = step(0.0f, sample_uv.x) * step(sample_uv.x, 1.0f) * step(0.0f, sample_uv.y) * step(sample_uv.y, 1.0f);
+    // perform blur
+    float4 result = motion_blur_reconstruction(
+        uv,
+        float2(pixel_coord),
+        resolution_color,
+        shutter_ratio,
+        noise
+    );
 
-        float sample_depth     = get_linear_depth(sample_uv);
-        float depth_difference = abs(center_depth - sample_depth);
-        float depth_weight     = exp(-depth_difference * g_depth_scale);
-
-        float4 sample_color     = tex.SampleLevel(samplers[sampler_bilinear_clamp], sample_uv, 0);
-        float3 sample_color_rgb = sample_color.rgb;
-        float color_difference  = length(center_color_rgb - sample_color_rgb);
-        float color_weight      = exp(-color_difference * g_color_scale);
-
-        float weight  = depth_weight * color_weight * is_on_screen;
-        color        += sample_color * weight;
-        total_weight += weight;
-    }
-
-    // normalize the accumulated color
-    color /= total_weight + FLT_MIN;
-
-    tex_uav[thread_id.xy] = float4(color.rgb, 1.0f);
+    tex_uav[pixel_coord] = result;
 }

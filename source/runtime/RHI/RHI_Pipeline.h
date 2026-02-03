@@ -1,5 +1,5 @@
 /*
-Copyright(c) 2015-2025 Panos Karabelas
+Copyright(c) 2015-2026 Panos Karabelas
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -23,7 +23,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 //= INCLUDES =================
 #include "RHI_PipelineState.h"
-#include "SpartanObject.h"
+#include "../Core/SpartanObject.h"
 //============================
 
 namespace spartan
@@ -35,15 +35,19 @@ namespace spartan
         RHI_Pipeline(RHI_PipelineState& pipeline_state, RHI_DescriptorSetLayout* descriptor_set_layout);
         ~RHI_Pipeline();
 
-        RHI_PipelineState* GetState()      { return &m_state; }
-        void* GetRhiResource() const       { return m_rhi_resource; }
-        void* GetRhiResourceLayout() const { return m_rhi_resource_layout; }
+        RHI_PipelineState* GetState()            { return &m_state; }
+        void* GetRhiResource() const             { return m_rhi_resource; }
+        void* GetRhiResourceLayout() const       { return m_rhi_resource_layout; }
+        void SetRhiResource(void* resource)      { m_rhi_resource = resource; }
+        void SetRhiResourceLayout(void* layout)  { m_rhi_resource_layout = layout; }
+        uint32_t GetPushConstantStages() const   { return m_push_constant_stages; }
 
     private:
         RHI_PipelineState m_state;
  
         // rhi
-        void* m_rhi_resource        = nullptr;
-        void* m_rhi_resource_layout = nullptr;
+        void* m_rhi_resource          = nullptr;
+        void* m_rhi_resource_layout   = nullptr;
+        uint32_t m_push_constant_stages = 0;
     };
 }

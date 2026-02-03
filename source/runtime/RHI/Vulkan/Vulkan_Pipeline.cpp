@@ -1,5 +1,5 @@
 /*
-Copyright(c) 2015-2025 Panos Karabelas
+Copyright(c) 2015-2026 Panos Karabelas
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -131,11 +131,17 @@ namespace spartan
                     
                     VkPushConstantRange push_constant_range  = {};
                     push_constant_range.size                 = descriptor.struct_size;
-                    push_constant_range.stageFlags          |= (descriptor.stage & rhi_shader_type_to_mask(RHI_Shader_Type::Vertex))  ? VK_SHADER_STAGE_VERTEX_BIT                  : 0;
-                    push_constant_range.stageFlags          |= (descriptor.stage & rhi_shader_type_to_mask(RHI_Shader_Type::Hull))    ? VK_SHADER_STAGE_TESSELLATION_CONTROL_BIT    : 0;
-                    push_constant_range.stageFlags          |= (descriptor.stage & rhi_shader_type_to_mask(RHI_Shader_Type::Domain))  ? VK_SHADER_STAGE_TESSELLATION_EVALUATION_BIT : 0;
-                    push_constant_range.stageFlags          |= (descriptor.stage & rhi_shader_type_to_mask(RHI_Shader_Type::Pixel))   ? VK_SHADER_STAGE_FRAGMENT_BIT                : 0;
-                    push_constant_range.stageFlags          |= (descriptor.stage & rhi_shader_type_to_mask(RHI_Shader_Type::Compute)) ? VK_SHADER_STAGE_COMPUTE_BIT                 : 0;
+                    push_constant_range.stageFlags          |= (descriptor.stage & rhi_shader_type_to_mask(RHI_Shader_Type::Vertex))        ? VK_SHADER_STAGE_VERTEX_BIT                  : 0;
+                    push_constant_range.stageFlags          |= (descriptor.stage & rhi_shader_type_to_mask(RHI_Shader_Type::Hull))          ? VK_SHADER_STAGE_TESSELLATION_CONTROL_BIT    : 0;
+                    push_constant_range.stageFlags          |= (descriptor.stage & rhi_shader_type_to_mask(RHI_Shader_Type::Domain))        ? VK_SHADER_STAGE_TESSELLATION_EVALUATION_BIT : 0;
+                    push_constant_range.stageFlags          |= (descriptor.stage & rhi_shader_type_to_mask(RHI_Shader_Type::Pixel))         ? VK_SHADER_STAGE_FRAGMENT_BIT                : 0;
+                    push_constant_range.stageFlags          |= (descriptor.stage & rhi_shader_type_to_mask(RHI_Shader_Type::Compute))       ? VK_SHADER_STAGE_COMPUTE_BIT                 : 0;
+                    push_constant_range.stageFlags          |= (descriptor.stage & rhi_shader_type_to_mask(RHI_Shader_Type::RayGeneration)) ? VK_SHADER_STAGE_RAYGEN_BIT_KHR              : 0;
+                    push_constant_range.stageFlags          |= (descriptor.stage & rhi_shader_type_to_mask(RHI_Shader_Type::RayMiss))       ? VK_SHADER_STAGE_MISS_BIT_KHR                : 0;
+                    push_constant_range.stageFlags          |= (descriptor.stage & rhi_shader_type_to_mask(RHI_Shader_Type::RayHit))        ? VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR         : 0;
+
+                    // store the stages for use in PushConstants calls
+                    m_push_constant_stages |= push_constant_range.stageFlags;
 
                     push_constant_ranges.emplace_back(push_constant_range);
                 }
@@ -520,7 +526,7 @@ namespace spartan
             pipeline_info.pStages                           = shader_stages.data();
             pipeline_info.groupCount                        = static_cast<uint32_t>(groups.size());
             pipeline_info.pGroups                           = groups.data();
-            pipeline_info.maxPipelineRayRecursionDepth      = 1; // number of bounces
+            pipeline_info.maxPipelineRayRecursionDepth      = 2; // number of bounces (2 for gi second bounce)
             pipeline_info.layout                            = static_cast<VkPipelineLayout>(m_rhi_resource_layout);
 
             SP_ASSERT_VK(pfn_vk_create_ray_tracing_pipelines_khr(RHI_Context::device, VK_NULL_HANDLE, VK_NULL_HANDLE, 1, &pipeline_info, nullptr, reinterpret_cast<VkPipeline*>(&m_rhi_resource)));
@@ -528,11 +534,6 @@ namespace spartan
         }
 
         SP_ASSERT(m_rhi_resource != nullptr);
-
-        if (Debugging::IsBreadcrumbsEnabled())
-        { 
-            RHI_VendorTechnology::Breadcrumbs_RegisterPipeline(this);
-        }
     }
     
     RHI_Pipeline::~RHI_Pipeline()

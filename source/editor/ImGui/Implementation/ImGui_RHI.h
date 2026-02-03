@@ -1,5 +1,5 @@
 /*
-Copyright(c) 2015-2025 Panos Karabelas
+Copyright(c) 2015-2026 Panos Karabelas
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -140,7 +140,7 @@ namespace ImGui::RHI
 
             // compile shaders
             {
-                const string shader_path = ResourceCache::GetResourceDirectory(ResourceDirectory::Shaders) + "\\ImGui.hlsl";
+                const string shader_path = ResourceCache::GetResourceDirectory(ResourceDirectory::Shaders) + "/imgui.hlsl";
 
                 bool async = false;
 
@@ -329,6 +329,7 @@ namespace ImGui::RHI
                                 float array_level          = 0.0f;
                                 bool is_texture_visualised = false;
                                 bool is_frame_texture      = false;
+                                bool texture_bound         = false;
                                 
                                 if (spartan::RHI_Texture* texture = reinterpret_cast<spartan::RHI_Texture*>(pcmd->TextureId))
                                 {
@@ -346,7 +347,14 @@ namespace ImGui::RHI
                                         }
 
                                         cmd_list->SetTexture(Renderer_BindingsSrv::tex, texture);
+                                        texture_bound = true;
                                     }
+                                }
+                                
+                                // always bind a texture to avoid uninitialized descriptor errors
+                                if (!texture_bound)
+                                {
+                                    cmd_list->SetTexture(Renderer_BindingsSrv::tex, g_font_atlas.get());
                                 }
                                 
                                 // pack booleans into uint bitfield
@@ -401,10 +409,20 @@ namespace ImGui::RHI
 
         cmd_list->EndTimeblock();
 
+        // for child windows, submit and prepare for presentation
         if (!is_main_window)
         {
-            cmd_list->InsertBarrier(swapchain->GetRhiRt(), swapchain->GetFormat(), 0, 1, 1, RHI_Image_Layout::Present_Source);
-            cmd_list->Submit(swapchain->GetImageAcquiredSemaphore(), false);
+            if (swapchain->IsImageAcquired())
+            {
+                cmd_list->InsertBarrier(swapchain->GetRhiRt(), swapchain->GetFormat(), 0, 1, 1, RHI_Image_Layout::Present_Source);
+                // use per-swapchain-image semaphore to signal rendering complete
+                cmd_list->Submit(swapchain->GetImageAcquiredSemaphore(), false, swapchain->GetRenderingCompleteSemaphore());
+            }
+            else
+            {
+                // no image acquired (window minimized/transitioning), submit without presentation semaphores
+                cmd_list->Submit(nullptr, true);
+            }
         }
     }
 

@@ -64,14 +64,17 @@ def generate_project_files():
     print("Running command:", cmd)
     
     try:
-        result = subprocess.run(cmd, shell=True, check=True, capture_output=True, text=True)
+        result = subprocess.run(cmd, shell=True, capture_output=True, text=True)
         print(result.stdout)
-    except subprocess.CalledProcessError as e:
-        print(f"Error occurred while generating project files: {e}")
-        print(f"Error output: {e.stderr}")
-        sys.exit(1)
+        if result.stderr:
+            print(result.stderr)
+        if result.returncode != 0:
+            print(f"\nPremake failed with exit code {result.returncode}")
+            input("\nPress Enter to exit...")
+            sys.exit(1)
     except Exception as e:
         print(f"An unexpected error occurred: {e}")
+        input("\nPress Enter to exit...")
         sys.exit(1)
 
 def main():
@@ -79,14 +82,12 @@ def main():
     
     print("\n1. Create binaries folder with the required data files...\n")
     file_utilities.copy("data", paths["binaries"]["data"])
-    file_utilities.copy(Path("build_scripts") / "download_assets.py", "binaries")
-    file_utilities.copy(Path("build_scripts") / "file_utilities.py", "binaries")
     file_utilities.copy(Path("build_scripts") / "7z.exe", "binaries")
     file_utilities.copy(Path("build_scripts") / "7z.dll", "binaries")
 
     print("\n2. Download and extract libraries...")
-    library_url           = 'https://www.dropbox.com/scl/fi/1gbbop588bit8xg5lc3tn/libraries.7z?rlkey=nnt46rm8k7u8r5v2sco66w9mo&st=ixlnzv72&dl=1'
-    library_expected_hash = '157ea61a212c85892f6ff5bc0e935852a0850d8428c9894f2d303824b9e8b13e'
+    library_url           = 'https://www.dropbox.com/scl/fi/zgaqbo6ej6gtsy88qybpt/libraries.7z?rlkey=h6w9mh5x5wlmiwif9ch7d8tcl&st=n212fb0y&dl=1'
+    library_expected_hash = 'c6a78aec855f09a476caae95cebc32dfb20357468b70b4152926809892917b45'
     library_destination   = Path("third_party") / "libraries" / "libraries.7z"
     file_utilities.download_file(library_url, str(library_destination), library_expected_hash)
     file_utilities.extract_archive(str(library_destination), str(Path("third_party") / "libraries"))

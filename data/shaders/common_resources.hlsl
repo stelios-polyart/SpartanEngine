@@ -1,5 +1,5 @@
 /*
-Copyright(c) 2015-2025 Panos Karabelas
+Copyright(c) 2015-2026 Panos Karabelas
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -58,20 +58,29 @@ struct FrameBufferData
     float camera_last_movement_time;
     float hdr_enabled;
     float hdr_max_nits;
-    float hdr_white_point;
+    float padding;
 
     float3 camera_position_previous;
     float resolution_scale;
     
     double time;
     float camera_fov;
-    float padding;
+    float padding2;
     
     float3 wind;
     float gamma;
 
     float3 camera_right;
     float camera_exposure;
+
+    // weather/clouds
+    float cloud_coverage;
+    float cloud_type;
+    float cloud_shadows;
+    float cloud_darkness;
+
+    float3 cloud_color;
+    float cloud_seed;
 };
 
 // 128 byte push constant buffer used by every pass
@@ -110,9 +119,12 @@ struct MaterialParameters
     float clearcoat;
     float clearcoat_roughness;
     
+    bool has_texture_albedo()    { return (flags & (1 << 2))  != 0; }
+    bool has_texture_normal()    { return (flags & (1 << 1))  != 0; }
     bool has_texture_occlusion() { return (flags & (1 << 7))  != 0; }
     bool has_texture_roughness() { return (flags & (1 << 3))  != 0; }
     bool has_texture_metalness() { return (flags & (1 << 4))  != 0; }
+    bool has_texture_emissive()  { return (flags & (1 << 6))  != 0; }
     bool emissive_from_albedo()  { return (flags & (1 << 15)) != 0; }
 };
 
@@ -127,6 +139,8 @@ struct LightParameters
     float angle;
     uint flags;
     uint screen_space_shadow_slice_index;
+    float area_width;  // area light width in meters
+    float area_height; // area light height in meters
     matrix transform[6];
     float2 atlas_offsets[6];
     float2 atlas_scales[6];
@@ -166,6 +180,33 @@ Texture3D tex3d : register(t13);
 // noise
 Texture2D tex_perlin : register(t14);
 
+// volumetric cloud 3D noise textures
+Texture3D tex3d_cloud_shape  : register(t19); // 128^3 Perlin-Worley + Worley FBM
+Texture3D tex3d_cloud_detail : register(t20); // 32^3 high-frequency detail
+// ray tracing geometry info for vertex buffer access (indexed by InstanceIndex())
+// matches c++ Sb_GeometryInfo struct
+struct GeometryInfo
+{
+    uint2 vertex_buffer_address; // uint64_t split into two uint32_t (low, high)
+    uint2 index_buffer_address;  // uint64_t split into two uint32_t (low, high)
+    uint vertex_offset;
+    uint index_offset;
+    uint vertex_count;
+    uint index_count;
+};
+
+// vertex structure matching c++ RHI_Vertex_PosTexNorTan (44 bytes)
+struct RtVertex
+{
+    float3 position;  // 12 bytes
+    float2 texcoord;  // 8 bytes  
+    float3 normal;    // 12 bytes
+    float3 tangent;   // 12 bytes
+};
+
+// ray tracing geometry info buffer
+RWStructuredBuffer<GeometryInfo> geometry_infos : register(u20);
+
 // bindless arrays
 Texture2D material_textures[]                            : register(t15, space1);
 StructuredBuffer<MaterialParameters> material_parameters : register(t16, space2);
@@ -174,16 +215,24 @@ StructuredBuffer<aabb> aabbs                             : register(t18, space4)
 SamplerComparisonState samplers_comparison[]             : register(s0,  space5);
 SamplerState samplers[]                                  : register(s1,  space6);
 
-// storage textures/buffers
-RWTexture2D<float4> tex_uav                                : register(u0);
-RWTexture2D<float4> tex_uav2                               : register(u1);
-RWTexture2D<float4> tex_uav3                               : register(u2);
-RWTexture2D<float4> tex_uav4                               : register(u3);
-RWTexture3D<float4> tex3d_uav                              : register(u4);
-RWTexture2DArray<float4> tex_uav_sss                       : register(u5);
-RWStructuredBuffer<uint> visibility                        : register(u6);
-globallycoherent RWStructuredBuffer<uint> g_atomic_counter : register(u7); // used by FidelityFX SPD
-globallycoherent RWTexture2D<float4> tex_uav_mips[12]      : register(u8); // used by FidelityFX SPD
+// storage textures/buffers (image_format unknown allows flexible format binding)
+[[vk::image_format("unknown")]] RWTexture2D<float4> tex_uav                                : register(u0);
+[[vk::image_format("unknown")]] RWTexture2D<float4> tex_uav2                               : register(u1);
+[[vk::image_format("unknown")]] RWTexture2D<float4> tex_uav3                               : register(u2);
+[[vk::image_format("unknown")]] RWTexture2D<float4> tex_uav4                               : register(u3);
+[[vk::image_format("unknown")]] RWTexture3D<float4> tex3d_uav                              : register(u4);
+[[vk::image_format("unknown")]] RWTexture2DArray<float4> tex_uav_sss                       : register(u5);
+RWStructuredBuffer<uint> visibility                                                        : register(u6);
+globallycoherent RWStructuredBuffer<uint> g_atomic_counter                                 : register(u7); // used by FidelityFX SPD
+[[vk::image_format("unknown")]] globallycoherent RWTexture2D<float4> tex_uav_mips[12]      : register(u8); // used by FidelityFX SPD
+// nrd denoiser output bindings
+[[vk::image_format("r16f")]]    RWTexture2D<float> tex_uav_nrd_viewz             : register(u26);
+[[vk::image_format("unknown")]] RWTexture2D<float4> tex_uav_nrd_normal_roughness : register(u27);
+[[vk::image_format("rgba16f")]] RWTexture2D<float4> tex_uav_nrd_diff_radiance    : register(u28);
+[[vk::image_format("rgba16f")]] RWTexture2D<float4> tex_uav_nrd_spec_radiance    : register(u29);
+
+// integer format textures (vrs, etc)
+RWTexture2D<uint> tex_uav_uint : register(u30);
 
 // buffers
 [[vk::push_constant]]
@@ -191,9 +240,11 @@ PassBufferData buffer_pass;
 cbuffer BufferFrame : register(b0) { FrameBufferData buffer_frame; };
 
 // easy access to buffer_frame members
-bool is_taa_enabled()                { return any(buffer_frame.taa_jitter_current); }
-bool is_ssr_enabled()                { return buffer_frame.options & uint(1U << 0); }
-bool is_ssao_enabled()               { return buffer_frame.options & uint(1U << 1); }
+bool is_taa_enabled()                    { return any(buffer_frame.taa_jitter_current); }
+bool is_ray_traced_reflections_enabled() { return buffer_frame.options & uint(1U << 0); }
+bool is_ssao_enabled()                   { return buffer_frame.options & uint(1U << 1); }
+bool is_ray_traced_shadows_enabled()     { return buffer_frame.options & uint(1U << 2); }
+bool is_restir_pt_enabled()              { return buffer_frame.options & uint(1U << 3); }
 matrix pass_get_transform_previous() { return buffer_pass.values; }
 float2 pass_get_f2_value()           { return float2(buffer_pass.values._m23, buffer_pass.values._m30); }
 float3 pass_get_f3_value()           { return float3(buffer_pass.values._m00, buffer_pass.values._m01, buffer_pass.values._m02); }

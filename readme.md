@@ -1,148 +1,208 @@
+<p align="center">
+  <img src="https://raw.githubusercontent.com/PanosK92/SpartanEngine/master/data/textures/banner.bmp" alt="Spartan Engine"/>
+</p>
 
-<img align="center" padding="2" src="https://raw.githubusercontent.com/PanosK92/SpartanEngine/master/data/textures/banner.bmp"/>
+<p align="center">
+  <strong>A research-focused game engine built for experimentation and pushing the boundaries of real-time rendering</strong>
+</p>
 
-<p>Spartan Engine is a highly capable one-man game engine I've been working on for over 10 years, it's designed for research, experimentation, and pushing the boundaries of rendering and simulation. The engine is particularly suited for industry professionals exploring advanced workflows rather than users focused solely on game creation.</p>
+<p align="center">
+  <a href="https://github.com/PanosK92/SpartanEngine/actions"><img src="https://github.com/PanosK92/SpartanEngine/actions/workflows/workflow.yml/badge.svg" alt="Build Status"></a>
+  <a href="https://discord.gg/TG5r2BS"><img src="https://img.shields.io/discord/677302405263785986?logo=discord&label=Discord&color=5865F2&logoColor=white" alt="Discord"></a>
+  <a href="https://github.com/PanosK92/SpartanEngine/blob/master/license.md"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="License"></a>
+</p>
 
-<p>Originally developed as a personal learning project, Spartan Engine has grown into a community that fosters collaboration and experimentation. Its Discord community of over 600 members, including seasoned professionals, provides an active space for knowledge-sharing and networking (jobs channel).</p>
+<p align="center">
+  <a href="https://discord.gg/TG5r2BS">Discord</a> •
+  <a href="https://x.com/panoskarabelas">X</a> •
+  <a href="https://github.com/PanosK92/SpartanEngine/wiki">Wiki</a> •
+  <a href="https://github.com/PanosK92/SpartanEngine/issues">Issues</a>
+</p>
 
-<p>Contributors can access a range of <a href="https://github.com/PanosK92/SpartanEngine/wiki/Perks-of-a-contributor">perks</a> designed to accelerate learning, skill development, and experimentation. Ambitious contributors are supported directly to maximize their growth and contribution potential.</p>
+---
 
-<p>Spartan Engine now serves a broader purpose: enabling others to explore, experiment, and push the boundaries of what’s possible in game and rendering technology.</p>
+## 🎯 The Vision
 
-- <img align="left" width="32" src="https://i.pinimg.com/736x/99/65/5e/99655e9fe24eb0a7ea38de683cedb735.jpg"/>For occasional updates regarding the project's development, you can follow me on <a href="https://twitter.com/panoskarabelas?ref_src=twsrc%5Etfw">X</a>.
-  
-- <img align="left" width="32" height="32" src="https://e7.pngegg.com/pngimages/705/535/png-clipart-computer-icons-discord-logo-discord-icon-rectangle-logo.png">For a community like no other, join our group of 600+ members on [discord](https://discord.gg/TG5r2BS).
-  
-- <img align="left" width="32" height="32" src="https://cdn-icons-png.flaticon.com/512/25/25231.png">For issues and anything directly related to the project, feel free to open an issue.
-  
-- <img align="left" width="32" height="32" src="https://i0.wp.com/opensource.org/wp-content/uploads/2023/01/cropped-cropped-OSI_Horizontal_Logo_0-e1674081292667.png">Please adhere to the <a href="https://en.wikipedia.org/wiki/MIT_License">MIT license</a>. You're free to copy the code, provided you include the original license.
-  
-#### Status
+Spartan Engine has been in development for **10+ years**, evolving from a personal learning project into an active community of **600+ members** on Discord—including industry professionals sharing knowledge and exploring cutting-edge technology.
 
-![build_status](https://github.com/PanosK92/SpartanEngine/actions/workflows/workflow.yml/badge.svg)
-[![Discord](https://img.shields.io/discord/677302405263785986?logo=discord&label=Discord&color=5865F2&logoColor=white)](https://discord.gg/TG5r2BS)
+**There's a destination that gives all this tech a purpose.** Curious? **[Read the plan →](https://github.com/PanosK92/SpartanEngine/blob/master/plan.md)**
 
+---
 
-# Worlds
+## 🎬 See It In Action
 
-<img align="left" width="450" src="https://raw.githubusercontent.com/PanosK92/SpartanEngine/master/.github/images/world_selection_4.png"/>
+[![Engine Trailer](https://raw.githubusercontent.com/PanosK92/SpartanEngine/master/.github/images/video_promo.png)](https://www.youtube.com/watch?v=TMZ0epSVwCk)
 
-Upon launching the engine, you'll be greeted with a selection of default worlds to load. Each world is physics-enabled, allowing you to walk around, pick objects using your mouse, and even drive a car. These worlds are designed to offer a diverse and enjoyable experience  
+---
+
+## 🌍 Worlds
+
+<img align="left" width="420" src="https://raw.githubusercontent.com/PanosK92/SpartanEngine/master/.github/images/world_selection_4.png"/>
+
+Launch the engine and choose from a selection of default worlds. Each is physics-enabled—walk around, pick up objects with your mouse, or take a car for a spin.
+
 <br clear="left"/>
 
-**Forest**
-<img src="https://raw.githubusercontent.com/PanosK92/SpartanEngine/master/.github/images/world_forest.jpg"/>
-The Forest is the most advanced and demanding world. It features **256 million** procedurally generated grass blades, fully simulated and inspired by **Ghost of Tsushima**. The world spans **64.1 km²**, covered in thousands trees and rocks.
+### Forest
 
-**Some of the other worlds**
+<img src="https://raw.githubusercontent.com/PanosK92/SpartanEngine/master/.github/images/world_forest.jpg"/>
+
+The most demanding world: **256 million** procedurally generated grass blades (inspired by Ghost of Tsushima), spanning **64.1 km²** covered with thousands of trees and rocks.
+
+### More Worlds
+
 | Sponza 4K | Subway |
 |:-:|:-:|
-| <img src="https://raw.githubusercontent.com/PanosK92/SpartanEngine/master/.github/images/world_sponza.png"/><br>The Sponza building, found in Dubrovnik, is showcased here with a true-to-life scale. | <img src="https://raw.githubusercontent.com/PanosK92/SpartanEngine/master/.github/images/world_subway.jpg"/><br>Emissive materials and GI test |
+| <img src="https://raw.githubusercontent.com/PanosK92/SpartanEngine/master/.github/images/world_sponza.png"/><br>Classic Dubrovnik building—ideal for path tracing | <img src="https://raw.githubusercontent.com/PanosK92/SpartanEngine/master/.github/images/world_subway.jpg"/><br>Emissive materials & GI testing |
 
 | Minecraft | Liminal Space |
 |:-:|:-:|
-| <img src="https://raw.githubusercontent.com/PanosK92/SpartanEngine/master/.github/images/world_minecraft.jpg"/><br>A good old minecraft world | <img src="https://raw.githubusercontent.com/PanosK92/SpartanEngine/master/.github/images/world_liminal.jpg"/><br>Shifts your frequency to a nearby reality |
+| <img src="https://raw.githubusercontent.com/PanosK92/SpartanEngine/master/.github/images/world_minecraft.jpg"/><br>A familiar blocky world | <img src="https://raw.githubusercontent.com/PanosK92/SpartanEngine/master/.github/images/world_liminal.jpg"/><br>Reality shifts to a nearby frequency |
 
-| Showroom |
-|:-:|
-| <img src="https://raw.githubusercontent.com/PanosK92/SpartanEngine/master/.github/images/world_showroom.png"/><br>Car Showroom - Ideal for YouTubers/Press as it doesn't use experimental tech |
+| Showroom | Car Playground |
+|:-:|:-:|
+| <img src="https://raw.githubusercontent.com/PanosK92/SpartanEngine/master/.github/images/world_showroom.png"/><br>Clean showcase—no experimental tech | <img src="https://raw.githubusercontent.com/PanosK92/SpartanEngine/master/.github/images/world_car_playground.png"/><br>Realistic car simulation with full telemetry |
 
-# Features
+---
 
-#### Rendering
+## ⚙️ Features
 
-- Renderer
-  - Cutting-edge Vulkan renderer
-  - 128-byte push constant buffer across passes for lightning-fast CPU-to-GPU data transfer
-  - Capable of handling hundreds of millions of instances thanks to its tightly packed 10-byte instance format
-  - On-the-fly single-dispatch GPU-based mip generation for render targets (FidelityFX SPD)
-  - On-the-fly compression and mip generation for material textures (FidelityFX Compressonator)
-  - Vulkan (main) and DirectX 12 (wip) backends with universal HLSL shaders
-  - Fully bindless design (materials, lights, samplers)
-  - Unified deferred rendering with transparency (BSDF with same render path)
-- Lighting & Shadows
-  - Atmospheric scattering, real-time filtering, IBL with bent normals
-  - Screen-space shadows (from *Days Gone*)
-  - Screen-space ambient occlusion (XeGTAO + visibility bitfield)
-  - Screen-space reflections (FidelityFX SSSR)
-  - Fast shadow mapping with penumbra, supporting dozens of lights via a shadow map atlas
-  - Volumetric fog
-- Performance & Upscaling
-  - Variable rate shading
-  - Upscaling: XeSS 2 & FSR 3
-  - Dynamic resolution scaling
-  - Temporal anti-aliasing
-  - Breadcrumbs for tracing GPU crashes on AMD (FidelityFX Breadcrumbs)
-- Camera & Environment
-  - Physically based camera
-  - Auto-exposure
-  - Physical light units (lumens & kelvin)
-  - Frustum & occlusion (Hi-Z) culling
-- Post-processing
-  - Tonemappers: ACES, AgX, others
-  - HDR10 output
-  - Post-processing effects: FXAA, bloom, motion blur, depth of field, chromatic aberration
+### Rendering
 
-###### General
+<details>
+<summary><strong>Renderer Architecture</strong></summary>
 
-- Project & Input
-  - One-click project generation
-  - Keyboard, mouse, controllers, steering wheels
-- Physics & Profiling
-  - Comprehensive physics features (PhysX)
-  - CPU & GPU profiling
-- Data & Systems
-  - XML support
-  - Thread pool for any workload
-  - Entity-component and event systems
-- File support
-  - 10+ font formats, 30+ image formats, 40+ model formats
+- Vulkan renderer with DirectX 12 backend (WIP)
+- Fully bindless design (materials, lights, samplers)
+- Universal HLSL shaders across both backends
+- 128-byte push constant buffer for fast CPU-to-GPU transfer
+- Tightly packed 10-byte instance format for hundreds of millions of instances
+- On-the-fly GPU mip generation (FidelityFX SPD) and texture compression (FidelityFX Compressonator)
+- Unified deferred rendering with transparency (BSDF with same render path)
 
-# Documentation
+</details>
 
-The [wiki](https://github.com/PanosK92/SpartanEngine/wiki/Wiki) can answer most of your questions, here are some of it's contents:
+<details>
+<summary><strong>Lighting & Shadows</strong></summary>
 
-- [Building](https://github.com/PanosK92/SpartanEngine/wiki/Building)
-- [Contributing](https://github.com/PanosK92/SpartanEngine/blob/master/contributing.md)
-- [Perks of a contributor](https://github.com/PanosK92/SpartanEngine/wiki/Perks-of-a-contributor)
+- Atmospheric scattering, real-time filtering, IBL with bent normals
+- Screen-space shadows (from Days Gone) and ambient occlusion (XeGTAO + visibility bitfield)
+- Ray-traced reflections & shadows
+- ReSTIR path-tracing
+- Fast shadow mapping with penumbra via shadow map atlas
+- Volumetric fog
 
-#### Tutorials
+</details>
 
-While the engine is designed primarily for experienced game developers to experiment, there are resources available for those who prefer a more guided approach.
+<details>
+<summary><strong>Performance & Upscaling</strong></summary>
 
-To get started, take a look at [Game.cpp](https://github.com/PanosK92/SpartanEngine/blob/master/source/runtime/Game/Game.cpp). This file contains all the logic for loading and setting up the default worlds within the engine, and it's a great place to understand the core structure of the engine.
+- Variable rate shading and dynamic resolution scaling
+- Upscaling: XeSS 2 & FSR 3
+- Temporal anti-aliasing
+- Custom breadcrumbs for GPU crash tracing
 
-# Media
+</details>
 
-### Podcast
+<details>
+<summary><strong>Camera & Post-Processing</strong></summary>
+
+- Physically based camera with auto-exposure
+- Physical light units (lumens & kelvin)
+- Frustum & occlusion (Hi-Z) culling
+- Tonemappers: ACES, AgX, Gran Turismo 7 (default)
+- HDR10 output
+- FXAA, bloom, motion blur, depth of field, chromatic aberration
+
+</details>
+
+### Car Simulation
+
+One of the most realistic out-of-the-box car simulations available. Physics runs at **200Hz** for precise tire and suspension response.
+
+<details>
+<summary><strong>Full Simulation Details</strong></summary>
+
+| System | Features |
+|--------|----------|
+| **Tires** | Pacejka magic formula, combined slip, load sensitivity, temperature model, camber thrust, relaxation length, multiple surfaces (asphalt, concrete, wet, gravel, grass, ice) |
+| **Suspension** | 7-ray contact patch per wheel, spring-damper with bump/rebound split, anti-roll bars, camber/toe alignment, bump steer |
+| **Drivetrain** | Piecewise engine torque curve, 7-speed gearbox (auto/manual), rev-match downshifts, LSD with preload, turbo with wastegate, engine braking |
+| **Brakes** | Thermal model (cold/optimal/fade zones), front/rear bias, ABS with configurable slip threshold |
+| **Aerodynamics** | Drag with frontal/side area, front/rear downforce, ground effect, yaw-dependent forces, pitch-dependent balance, rolling resistance |
+| **Steering** | Ackermann geometry, high-speed reduction, non-linear response, self-aligning torque |
+| **Assists** | ABS, traction control, handbrake lock |
+| **Input** | Controllers with analog throttle/brake/steering, haptic feedback (tire slip, ABS, drifting) |
+| **Camera** | GT7-inspired chase camera with speed-based dynamics and orbit controls |
+| **Debug** | Raycast, suspension, and aero force visualization with telemetry logging |
+
+</details>
+
+### General
+
+- **Input**: Keyboard, mouse, controllers, steering wheels
+- **Physics**: Comprehensive PhysX integration
+- **Profiling**: CPU & GPU profiling tools
+- **Data**: XML support, thread pool, entity-component and event systems
+- **File Formats**: 10+ fonts, 30+ images, 40+ models
+
+---
+
+## 🚀 Getting Started
+
+### Building
+
+One-click project generation—see the **[Building Guide](https://github.com/PanosK92/SpartanEngine/wiki/Building)** for details.
+
+### Learning the Engine
+
+Start with **[Game.cpp](https://github.com/PanosK92/SpartanEngine/blob/master/source/runtime/Game/Game.cpp)**—it shows how default worlds are loaded and is the best entry point for understanding the engine's structure.
+
+---
+
+## 🎙️ Podcast
 
 <table>
   <tr>
+    <td><img width="400" src="https://raw.githubusercontent.com/PanosK92/SpartanEngine/refs/heads/master/.github/images/podcast.png"/></td>
     <td>
-      <img align="left" width="512" src="https://raw.githubusercontent.com/PanosK92/SpartanEngine/refs/heads/master/.github/images/podcast.png"/>
-    </td>
-    <td>
-      Join me as I explore the tech world and beyond, meeting the brightest minds across cutting-edge industries and uncovering their stories.<br><br>
-      <img align="left" width="32" height="32" src="https://cdn-icons-png.flaticon.com/512/174/174883.png"/>Watch on <a href="https://youtu.be/OZRwCZhglsQ">YouTube</a>.<br><br>
-      <img align="left" width="32" height="32" src="https://cdn-icons-png.flaticon.com/512/174/174872.png"/>Listen on <a href="https://open.spotify.com/show/5F27nWKn9TZdClc5db9efY">Spotify</a>.
+      <strong>Exploring the tech world and beyond</strong><br><br>
+      Meeting the brightest minds across cutting-edge industries.<br><br>
+      📺 <a href="https://youtu.be/OZRwCZhglsQ">Watch on YouTube</a><br>
+      🎧 <a href="https://open.spotify.com/show/5F27nWKn9TZdClc5db9efY">Listen on Spotify</a>
     </td>
   </tr>
 </table>
-<br clear="left"/>
 
-### Engine Trailer
+---
 
-[![Image2](https://raw.githubusercontent.com/PanosK92/SpartanEngine/master/.github/images/video_promo.png)](https://www.youtube.com/watch?v=TMZ0epSVwCk)
-# Support
+## 🤝 Community & Support
 
-I cover the costs for Dropbox hosting to ensure library and assets bandwidth is available. If you enjoy the ease of running a single script and having everything download, compile and work seamlessly, please consider [sponsoring](https://github.com/sponsors/PanosK92) to help keep it that way. Sponsoring directly is much more helpful than boosting the Discord server since boosts only benefit Discord, not the project. Your support goes directly into maintaining and improving everything.
+### Contributing
 
-# Interesting Facts & Use Cases  
+Contributors get access to **[exclusive perks](https://github.com/PanosK92/SpartanEngine/wiki/Perks-of-a-contributor)** designed to accelerate learning and skill development.
 
-- This engine started as a personal learning project and a way to enhance my portfolio while I was a university student. I also used it for my thesis at [my university](https://en.wikipedia.org/wiki/University_of_Thessaly) with professor [Fotis Kokkoras](https://ds.uth.gr/en/staff-en/faculty-en/kokkoras/).
-- Contributing to this project comes with great perks! Learn more about the benefits [here](https://github.com/PanosK92/SpartanEngine/wiki/Perks-of-a-contributor).  
-- **Godot** integrates Spartan’s TAA. See it in action [here](https://github.com/godotengine/godot/blob/37d51d2cb7f6e47bef8329887e9e1740a914dc4e/servers/rendering/renderer_rd/shaders/effects/taa_resolve.glsl#L2).  
-- **Stalker Anomaly** features an addon that enhances rendering using Spartan's source. Check it out [here](https://www.moddb.com/mods/stalker-anomaly/addons/screen-space-shaders).  
-- Jesse Guerrero, a contributor, wrote a [book](https://www.amazon.com/dp/B0CXG1CMNK?ref_=cm_sw_r_cp_ud_dp_A14WVAH86VH407JE95MG_1) on beginner programming, featuring Spartan's code, its Discord community, and leadership.  
+**[Read the Contributing Guide →](https://github.com/PanosK92/SpartanEngine/blob/master/contributing.md)**
 
-Are you utilizing any code from Spartan Engine, or has it inspired aspects of your work? If yes, reach out to me, I'd love to showcase your project.
+### Sponsorship
+
+I cover the costs for Dropbox hosting to ensure library and asset bandwidth is available. If you enjoy running a single script and having everything download, compile, and work seamlessly, please consider **[becoming a sponsor](https://github.com/sponsors/PanosK92)**. Direct sponsorship helps more than Discord boosts—it goes directly into maintaining and improving the project.
+
+---
+
+## 🏆 Projects Using Spartan
+
+| Project | Description |
+|---------|-------------|
+| **University Thesis** | Originally created as a learning project and portfolio piece during university at [University of Thessaly](https://en.wikipedia.org/wiki/University_of_Thessaly) with Professor [Fotis Kokkoras](https://ds.uth.gr/en/staff-en/faculty-en/kokkoras/) |
+| **Godot Engine** | Integrates Spartan's TAA ([view source](https://github.com/godotengine/godot/blob/37d51d2cb7f6e47bef8329887e9e1740a914dc4e/servers/rendering/renderer_rd/shaders/effects/taa_resolve.glsl#L2)) |
+| **S.T.A.L.K.E.R. Anomaly** | Rendering addon using Spartan's source ([ModDB](https://www.moddb.com/mods/stalker-anomaly/addons/screen-space-shaders)) |
+| **Programming Book** | Jesse Guerrero's [beginner programming book](https://www.amazon.com/dp/B0CXG1CMNK) features Spartan's code and community |
+
+**Using code from Spartan?** [Reach out](https://twitter.com/panoskarabelas)—I'd love to showcase your project!
+
+---
+
+## 📄 License
+
+**[MIT License](https://github.com/PanosK92/SpartanEngine/blob/master/license.md)** — free to use with attribution.
